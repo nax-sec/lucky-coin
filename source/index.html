@@ -172,6 +172,11 @@
     0%{transform:scale(1);opacity:.9}
     100%{transform:scale(1.5);opacity:0}
   }
+  .cell.enchanted::before{
+    content:"";position:absolute;inset:-2px;border:2px solid var(--brass-lit,#F0CB43);
+    border-radius:3px;pointer-events:none;z-index:1;
+    box-shadow:0 0 10px rgba(240,203,67,.55),inset 0 0 8px rgba(240,203,67,.25);
+  }
   .cell.wrecked{
     border-color:rgba(195,62,42,.65);
     background:linear-gradient(180deg,rgba(195,62,42,.18),rgba(195,62,42,.07));
@@ -370,6 +375,15 @@
     box-shadow:inset 0 1px 0 rgba(255,255,255,.5);
   }
   .offer .chips{gap:6px}
+  .offer.chosen{
+    border-color:var(--brass-lit,#F0CB43);
+    box-shadow:0 0 0 1px var(--brass-lit,#F0CB43),0 0 22px rgba(240,203,67,.25);
+  }
+  .chip.ench{border-color:var(--brass);box-shadow:0 0 0 1px rgba(201,162,39,.25) inset}
+  .ebadge{
+    margin-left:5px;padding:1px 5px;border-radius:2px;font-size:10.5px;letter-spacing:.04em;
+    background:rgba(201,162,39,.18);color:var(--brass);border:1px solid rgba(201,162,39,.4);
+  }
   .chip.pick{cursor:pointer}
   .chip.pick:hover{border-color:var(--cinnabar-hot);background:rgba(195,62,42,.16)}
   .chip.info{cursor:pointer}
@@ -548,11 +562,12 @@
         <div class="meter" id="meterBox"><i id="meter" style="width:0%"></i></div>
       </div>
       <div>
-        <h2 class="section-title">第 <span id="level">1</span>/5 关 · 第 <span id="period">1</span> 期</h2>
+        <h2 class="section-title"><span id="levelLabel">第 <span id="level">1</span>/5 关</span> · 第 <span id="period">1</span> 期</h2>
         <div class="notches" id="notches" aria-hidden="true"></div>
         <div class="stat"><span class="k">符号池</span><span class="v small" id="poolCount">5</span></div>
         <div class="stat"><span class="k">整理次数</span><span class="v small" id="tokens">1</span></div>
         <div class="stat"><span class="k">盘面倍率</span><span class="v small" id="gmul" style="color:var(--jade)">×1.00</span></div>
+        <div class="stat" id="scoreRow" hidden><span class="k">无尽成绩</span><span class="v small" id="score">—</span></div>
       </div>
       <div>
         <h2 class="section-title">道具 <span id="itemCount" style="font-family:var(--num);color:var(--bone-dim)"></span></h2>
@@ -850,6 +865,47 @@
   // 偏向强度随关数递增：前期让你看世界，后期让你走通
   function biasK(){ return Math.min(0.42, 0.10+0.07*levelOf(S.period)); }
 
+  /* ========== 附魔 ==========
+     一个实例只能带一条，再附魔即覆盖。
+     系统约定：凡是读取别人产出或属性的附魔，一律读「快照」——
+     即结算前的值，分发所得不再参与二次分发。否则两个折射相邻会无限套娃。
+     标签结算顺序：百变掷骰 → 全能覆盖 → 传染读快照外传（传过去的不再外传）。
+  */
+  const ENCH={
+    anchor:{nm:"不落空",em:"🔒",dsc:"这一个每转必定上场，不受符号池稀释影响。"},
+    pull:  {nm:"引力",  em:"🧲",dsc:"若它的搭档也在池中，本转必定与搭档相邻。"},
+    unify: {nm:"同心",  em:"🔗",dsc:"视为与盘面上所有同族符号相邻，不限身边八格。"},
+    twin:  {nm:"双生",  em:"👯",dsc:"结算两次：摧毁、加成、成长都算两次。"},
+    echo:  {nm:"回声",  em:"🔔",dsc:"被摧毁后不移出符号池，下一转还回来。"},
+    spread:{nm:"传染",  em:"🦠",dsc:"本转把自己的品类传给相邻符号。"},
+    prism: {nm:"折射",  em:"💠",dsc:"把自己产出的一半再给相邻一个符号（按结算前的值算）。"},
+    charge:{nm:"蓄势",  em:"⏳",dsc:"连续两转不结钱，第三转产出 ×5。"},
+    omni:  {nm:"全能",  em:"🌐",dsc:"视为同时属于所有品类。"},
+    morph: {nm:"百变",  em:"🎭",dsc:"每转随机变成另一个品类，产出 ×2。"},
+  };
+  function enchOf(uid){ return S.ench[uid]||null; }
+  const ALL_TAGS=["水果","动物","器物","植物","食物","赌具"];
+
+  /* ========== 存档：只存无尽的最好成绩 ========== */
+  const SAVE_KEY="luckycoin.endless.v1";
+  function loadBest(){
+    try{ return JSON.parse(localStorage.getItem(SAVE_KEY))||null; }catch(_){ return null; }
+  }
+  function saveBest(rec){
+    try{
+      const old=loadBest();
+      if(!old || rec.lv>old.lv || (rec.lv===old.lv && rec.earned>old.earned))
+        localStorage.setItem(SAVE_KEY, JSON.stringify(rec));
+    }catch(_){}
+  }
+  // 计分：关数为主，累计收入作小数点
+  // 无尽内部关号：主线 5 关不计入成绩
+  function endlessLv(){ return Math.max(0, levelOf(S.period)-TOTAL_LEVELS); }
+  function scoreText(lv,earned){
+    const w=earned>=10000?(earned/10000).toFixed(1)+" 万":earned.toLocaleString();
+    return `第 ${lv} 关 · ${w}`;
+  }
+
   /* ================= 状态 ================= */
   // 结构：5 期 = 1 关，10 关通关。租金是一张写死的表，不按收入百分比抽 ——
   // 按百分比抽的话，你赚得越多被拿走越多，涨再快也没有变强的实感。
@@ -889,7 +945,8 @@
 
   let uidSeq=0;
   const S={pool:[],growth:{},items:[],coins:0,period:1,spinsLeft:5,spinNo:0,tokens:1,
-           counters:{sack:0,pawn:0,rents:0},over:false,busy:false,removalsBought:0,rerolls:0,endless:false};
+           counters:{sack:0,pawn:0,rents:0,ench:0},over:false,busy:false,removalsBought:0,rerolls:0,endless:false,
+           ench:{},encnt:{},earned:0};
 
   const el=id=>document.getElementById(id);
   const gridEl=el("grid"), veil=el("veil"), sheet=el("sheet");
@@ -953,16 +1010,43 @@
 
   /* ================= 结算 ================= */
   function pickBoard(){
-    const bag=S.pool.slice();
+    // 「不落空」优先入场：这是它免疫稀释的实现方式
+    const anchored=S.pool.filter(x=>enchOf(x.uid)==="anchor");
+    const bag=S.pool.filter(x=>enchOf(x.uid)!=="anchor");
     for(let i=bag.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[bag[i],bag[j]]=[bag[j],bag[i]];}
-    const chosen=bag.slice(0,Math.min(CELLS,bag.length));
+    const chosen=[...anchored,...bag].slice(0,Math.min(CELLS,S.pool.length));
     const slots=[...Array(CELLS).keys()];
     for(let i=slots.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[slots[i],slots[j]]=[slots[j],slots[i]];}
     const board=new Array(CELLS).fill(null);
     chosen.forEach((inst,i)=>{
       const p=slots[i];
       board[p]={uid:inst.uid,id:inst.id,pos:p,r:Math.floor(p/COLS),c:p%COLS,
-                val:SYMBOLS[inst.id].base,gain:0,mul:1,dead:false,pay:0};
+                val:SYMBOLS[inst.id].base,gain:0,flat:0,mul:1,dead:false,pay:0};
+    });
+
+    // 「引力」：把搭档挪到自己身边。多个引力抢位置时按池中顺序依次安置，安不下的退化成随机。
+    const at=(r,c)=>(r<0||r>=ROWS||c<0||c>=COLS)?null:board[r*COLS+c];
+    const relocate=(from,to)=>{
+      const A=board[from],B=board[to];
+      board[to]=A; board[from]=B;
+      [[to,A],[from,B]].forEach(([pos,t])=>{ if(t){t.pos=pos;t.r=Math.floor(pos/COLS);t.c=pos%COLS;} });
+    };
+    board.forEach(t=>{
+      if(!t||enchOf(t.uid)!=="pull") return;
+      const want=PARTNER[t.id]||[];
+      if(!want.length) return;
+      const slots=[];
+      for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+        if(!dr&&!dc) continue;
+        const r=t.r+dr,c=t.c+dc;
+        if(r<0||r>=ROWS||c<0||c>=COLS) continue;
+        const n=at(r,c);
+        if(n&&want.includes(n.id)) return;             // 已经挨着了
+        slots.push(r*COLS+c);
+      }
+      const mate=board.find(x=>x&&want.includes(x.id));
+      if(!mate||!slots.length) return;                  // 搭档没上场，或身边无处安放
+      relocate(mate.pos, slots[Math.floor(Math.random()*slots.length)]);
     });
     return board;
   }
@@ -970,12 +1054,45 @@
   function resolve(board){
     const m=mods();
     const live=board.filter(Boolean);
+
+    // 标签是运行时状态，不再是符号的固定属性。顺序：百变掷骰 → 全能覆盖 → 传染读快照外传。
+    live.forEach(t=>{
+      const e=enchOf(t.uid);
+      let tags=SYMBOLS[t.id].tags.slice();
+      if(e==="morph"){
+        const other=ALL_TAGS.filter(x=>!tags.includes(x));
+        tags=[other[Math.floor(Math.random()*other.length)]];
+        t.mul*=2;                                   // 百变的补偿
+      }
+      if(e==="omni") tags=ALL_TAGS.slice();
+      t.tags=tags;
+    });
+    const tagSnap=new Map(live.map(t=>[t.pos,t.tags.slice()]));   // 快照：传过去的不再外传
+    live.forEach(t=>{
+      if(enchOf(t.uid)!=="spread") return;
+      const mine=tagSnap.get(t.pos);
+      for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+        if(!dr&&!dc) continue;
+        const r=t.r+dr,c=t.c+dc;
+        if(r<0||r>=ROWS||c<0||c>=COLS) continue;
+        const n=board[r*COLS+c]; if(!n) continue;
+        mine.forEach(g=>{ if(!n.tags.includes(g)) n.tags.push(g); });
+      }
+    });
     const wreckedUids=new Set(), morphs=[], notes=[];
 
     const ctx=t=>({
       t,
       near(pred){
         const out=[];
+        if(enchOf(t.uid)==="unify"){                 // 同心：相邻从空间关系变成类别关系
+          live.forEach(n=>{
+            if(n===t||n.dead) return;
+            if(!(n.tags||[]).some(g=>(t.tags||[]).includes(g))) return;
+            if(pred(n)) out.push(n);
+          });
+          return out;
+        }
         for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
           if(!dr&&!dc) continue;
           const r=t.r+dr,c=t.c+dc;
@@ -1005,7 +1122,7 @@
         x.dead=true; wreckedUids.add(x.uid); return true;
       },
       morph(x,to){ morphs.push([x.uid,to]); },
-      tag(tile,tg){ return (SYMBOLS[tile.id].tags||[]).includes(tg); },
+      tag(tile,tg){ return (tile.tags||SYMBOLS[tile.id].tags||[]).includes(tg); },
       flag(k){ return !!m.flags[k]; },
       dbl(){ return m.flags.whet?2.5:2; },
       itemCount(){ return S.items.length; },
@@ -1019,7 +1136,9 @@
       live.forEach(t=>{
         if(t.dead) return;
         const d=SYMBOLS[t.id];
-        if(d.phase===ph&&d.fx) d.fx(ctx(t));
+        if(d.phase!==ph||!d.fx) return;
+        d.fx(ctx(t));
+        if(enchOf(t.uid)==="twin"&&!t.dead) d.fx(ctx(t));   // 双生：复制的是行为
       });
     });
 
@@ -1033,18 +1152,38 @@
     // 果园：水果相邻水果再 +2
     if(m.flags.orchard){
       live.forEach(t=>{
-        if(t.dead||!SYMBOLS[t.id].tags.includes("水果")) return;
-        const n=ctx(t).near(x=>SYMBOLS[x.id].tags.includes("水果")).length;
+        if(t.dead||!(t.tags||[]).includes("水果")) return;
+        const n=ctx(t).near(x=>(x.tags||[]).includes("水果")).length;
         t.gain+=1*n;
       });
     }
 
-    let total=0;
     live.forEach(t=>{
       const raw=t.dead?t.gain:(t.val+t.gain);
-      t.pay=Math.max(0,Math.round(raw*t.mul));
-      total+=t.pay;
+      t.pay=Math.max(0,Math.round(raw*t.mul)+(t.dead?0:t.flat));
+      // 「蓄势」：连续两转不结钱，第三转 ×5
+      if(enchOf(t.uid)==="charge"){
+        const k=(S.encnt[t.uid]||0)+1; S.encnt[t.uid]=k;
+        t.pay = (k%3===0) ? t.pay*5 : 0;
+      }
     });
+    // 「折射」：读快照，分发所得不再参与二次分发（否则两个折射相邻会无限套娃）
+    const paySnap=new Map(live.map(t=>[t.pos,t.pay]));
+    live.forEach(t=>{
+      if(enchOf(t.uid)!=="prism"||t.dead) return;
+      const half=Math.round((paySnap.get(t.pos)||0)/2);
+      if(half<=0) return;
+      const nb=[];
+      for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+        if(!dr&&!dc) continue;
+        const r=t.r+dr,c=t.c+dc;
+        if(r<0||r>=ROWS||c<0||c>=COLS) continue;
+        const x=board[r*COLS+c]; if(x&&!x.dead) nb.push(x);
+      }
+      if(nb.length) nb[Math.floor(Math.random()*nb.length)].pay+=half;
+    });
+    let total=0;
+    live.forEach(t=>{ total+=t.pay; });
 
     const wreckN=wreckedUids.size;
     let extra=m.flat + wreckN*m.perWreck;
@@ -1184,6 +1323,7 @@
     const old=cell.querySelector(".pay"); if(old) old.remove();
     if(!t) return;
     cell.classList.add("filled","r-"+SYMBOLS[t.id].rar);
+    if(enchOf(t.uid)) cell.classList.add("enchanted");
     if(withBounce) cell.classList.add("stopped");
     if(t.dead) cell.classList.add("wrecked");
     const p=document.createElement("span");
@@ -1232,6 +1372,7 @@
     const board=pickBoard();
     lastBoard=board;
     const res=resolve(board);
+    S.earned+=res.total;          // 累计收入：放在结算处，动画走哪条路径都算得到
     await reelSpin(board);
     await animatePayout(board,res);
 
@@ -1239,7 +1380,13 @@
     S.counters.pawn=0;
     if(S.items.includes("sack")) S.counters.sack=res.wreckN*6;
 
-    if(res.wreckedUids.size) S.pool=S.pool.filter(x=>!res.wreckedUids.has(x.uid));
+    if(res.wreckedUids.size){
+      // 「回声」：本转照样算作被摧毁（不结钱、给摧毁方发钱），但不移出符号池
+      const echoed=[...res.wreckedUids].filter(u=>enchOf(u)==="echo");
+      S.pool=S.pool.filter(x=>!res.wreckedUids.has(x.uid)||enchOf(x.uid)==="echo");
+      [...res.wreckedUids].forEach(u=>{ if(enchOf(u)!=="echo"){ delete S.ench[u]; delete S.growth[u]; delete S.encnt[u]; } });
+      if(echoed.length) res.notes.push(`回声：${echoed.length} 个符号留了下来`);
+    }
     res.morphs.forEach(([uid,to])=>{const inst=S.pool.find(x=>x.uid===uid); if(inst) inst.id=to;});
 
     render();
@@ -1308,21 +1455,46 @@
           <span class="chip">符号　<b style="color:var(--brass)">${new Set(S.pool.map(x=>x.id)).size}/${Object.keys(SYMBOLS).length}</b>　种上过场</span>
         </div>
       </div>
+      <div class="shop-sec">
+        <h3 class="section-title">无尽模式</h3>
+        <p class="hint" style="margin:0">
+          铺子归你了，那就一直开下去。往后每关 5 期，租金一路涨，
+          <b style="color:var(--brass)">附魔台</b>也随之开门——
+          把某一个符号镶上一条规则，让它不再只是"多几分"。<br>
+          ${(()=>{const b=loadBest();return b?`你的最好成绩：<b style="color:var(--brass)">${scoreText(b.lv,b.earned)}</b>`:"这是你第一次进无尽。";})()}
+        </p>
+      </div>
       <div class="sheet-foot">
-        <button id="endless">接着开，无尽模式</button>
+        <button id="endless">接着开，进无尽</button>
         <button id="againWin">再来一局</button>
       </div>`);
-    el("endless").onclick=()=>{ S.endless=true; close(); openShop(0); };
+    el("endless").onclick=()=>{ S.endless=true; S.counters.ench=0; close(); openShop(0); };
     el("againWin").onclick=()=>{ close(); init(); };
   }
 
   function gameOver(due){
-    S.over=true; S.busy=true; render();
+    S.over=true; S.busy=true;
+    const lv=S.endless ? Math.max(0,endlessLv()-1) : levelOf(S.period)-1;
+    if(S.endless){
+      const prev=loadBest();
+      saveBest({lv, earned:S.earned, at:Date.now()});
+      var 战绩=`
+      <div class="shop-sec">
+        <h3 class="section-title">无尽成绩</h3>
+        <div class="chips">
+          <span class="chip">本局　<b style="color:var(--brass)">${scoreText(lv,S.earned)}</b></span>
+          <span class="chip">最好　<b style="color:var(--brass)">${(()=>{const b=loadBest();return b?scoreText(b.lv,b.earned):"—";})()}</b></span>
+          ${(!prev||lv>prev.lv||(lv===prev.lv&&S.earned>prev.earned))?'<span class="chip" style="border-color:var(--seal,#AE3226);color:var(--seal,#AE3226)">✦ 新纪录</span>':''}
+        </div>
+      </div>`;
+    }
+    render();
     open(`
       <h2>关门</h2>
-      <p class="hint">第 ${levelOf(S.period)} 关的租交不上，差 ${due-S.coins} 个铜钱。</p>
+      <p class="hint">${S.endless?`无尽第 ${endlessLv()} 关`:`第 ${levelOf(S.period)} 关`}的租交不上，差 ${due-S.coins} 个铜钱。</p>
+      ${S.endless?战绩:""}
       <div style="display:flex;gap:28px;flex-wrap:wrap;margin:18px 0 22px">
-        <div><div class="fam">撑过</div><div class="over-num">${levelOf(S.period)-1} 关</div></div>
+        <div><div class="fam">撑过</div><div class="over-num">${S.endless?endlessLv()-1:levelOf(S.period)-1} 关</div></div>
         <div><div class="fam">转了</div><div class="over-num">${S.spinNo} 次</div></div>
         <div><div class="fam">池子</div><div class="over-num">${S.pool.length} 个</div></div>
         <div><div class="fam">道具</div><div class="over-num">${S.items.length} 件</div></div>
@@ -1411,6 +1583,73 @@
       <span class="tagline r-${s.rar}">${RAR_NM[s.rar]}</span></span>
       <span class="meta">底值 ${s.base}${price!==null?`　·　${price} 钱`:""}</span>
       <span class="dsc">${s.dsc}</span></button>`;
+  }
+
+  /* ================= 附魔台（无尽） ================= */
+  function enchPrice(){ return Math.round(160*periodScale()*Math.pow(1.35, S.counters.ench||0)); }
+  let benchPick=null;
+
+  function openBench(back){
+    benchPick=null; drawBench(back);
+  }
+  function drawBench(back){
+    const price=enchPrice();
+    const keys=Object.keys(ENCH);
+    const cards=keys.map(k=>{
+      const e=ENCH[k], on=benchPick===k;
+      return `<button class="offer ${on?"chosen":""}" data-ench="${k}">
+        <span class="top"><span class="em">${e.em}</span><span class="nm">${e.nm}</span>
+        ${on?'<span class="tagline r-rare">已选</span>':''}</span>
+        <span class="dsc">${e.dsc}</span></button>`;
+    }).join("");
+
+    const targets = benchPick ? S.pool.map((x,i)=>({x,i}))
+      .sort((a,b)=>{
+        const ea=enchOf(a.x.uid)?1:0, eb=enchOf(b.x.uid)?1:0;
+        if(ea!==eb) return ea-eb;                       // 没附魔的排前面
+        const ga=S.growth[a.x.uid]||0, gb=S.growth[b.x.uid]||0;
+        return gb-ga;
+      })
+      .map(({x})=>{
+        const d=SYMBOLS[x.id], cur=enchOf(x.uid), g=S.growth[x.uid]||0;
+        let tag="";
+        if(x.id==="moon"&&g) tag=`<span class="n">×${Math.pow(1.07,g).toFixed(2)}</span>`;
+        else if(x.id==="hole"&&g) tag=`<span class="n">×${Math.pow(1.15,g).toFixed(2)}</span>`;
+        return `<span class="chip pick ${cur?"ench":""}" data-target="${x.uid}"
+          title="${d.nm}${cur?" — 现有 "+ENCH[cur].nm+"，镶上去会覆盖":""}">
+          ${d.em} ${d.nm}${tag}${cur?`<span class="ebadge">${ENCH[cur].em}${ENCH[cur].nm}</span>`:""}</span>`;
+      }).join("") : "";
+
+    open(`
+      <span class="purse">铜钱 ${S.coins}</span>
+      <h2>附魔台</h2>
+      <p class="hint">一个符号只能带一条附魔，再镶就是覆盖。
+      每镶一次，往后就更贵一分——现价 <b style="color:var(--brass)">${price}</b> 钱。</p>
+      <div class="offers">${cards}</div>
+      ${benchPick?`<div class="shop-sec">
+        <h3 class="section-title">镶在哪一个上？　<span style="font-size:12px;color:var(--bone-dim)">共 ${S.pool.length} 个</span></h3>
+        <div class="chips">${targets}</div></div>`:""}
+      <div class="sheet-foot">
+        ${benchPick?'<button id="benchBack">换一条附魔</button>':''}
+        <button id="benchLeave">离开</button>
+      </div>`);
+
+    sheet.querySelectorAll("[data-ench]").forEach(b=>b.onclick=()=>{
+      if(S.coins<price) return;
+      benchPick=b.dataset.ench; drawBench(back);
+    });
+    sheet.querySelectorAll("[data-target]").forEach(c=>c.onclick=()=>{
+      if(!benchPick||S.coins<enchPrice()) return;
+      const uid=+c.dataset.target;
+      S.coins-=enchPrice();
+      S.counters.ench=(S.counters.ench||0)+1;
+      S.ench[uid]=benchPick;
+      delete S.encnt[uid];                      // 换附魔时重置蓄势计数
+      benchPick=null;
+      render(); drawBench(back);
+    });
+    const bb=el("benchBack"); if(bb) bb.onclick=()=>{ benchPick=null; drawBench(back); };
+    el("benchLeave").onclick=()=>{ benchPick=null; back(); };
   }
 
   /* ================= 商店 ================= */
@@ -1514,9 +1753,12 @@
       </div>
 
       <div class="sheet-foot">
+        ${S.endless?`<button id="toBench" ${S.coins>=enchPrice()?"":"disabled"}>附魔台 · ${enchPrice()} 钱起</button>`:""}
         <button id="buyRm" ${(S.coins>=removalPrice()&&S.removalsBought<1)?"":"disabled"}>${S.removalsBought>=1?"整理已售罄（每次进店限一次）":`买 1 次整理 · ${removalPrice()} 钱`}</button>
         <button id="leave">离开，开转</button>
       </div>`);
+    const tb=el("toBench");
+    if(tb) tb.onclick=()=>openBench(()=>drawShop(paid));
 
     sheet.querySelectorAll("[data-item]").forEach(b=>b.onclick=()=>{
       const id=b.dataset.item,it=ITEMS[id],price=itemPrice(id);
@@ -1560,24 +1802,42 @@
 
   /* ================= 池子 / 道具册 ================= */
   function showPool(){
-    const cnt={};
-    S.pool.forEach(x=>{cnt[x.id]=(cnt[x.id]||0)+1;});
-    const rows=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]).map(id=>{
-      const s=SYMBOLS[id],can=S.tokens>0;
-      return `<span class="chip ${can?"pick":""}" ${can?`data-rm="${id}"`:""} title="${s.nm} — ${s.dsc}">
-        ${s.em} ${s.nm} <span class="n">×${cnt[id]}</span></span>`;
-    }).join("");
+    // 实例级：附魔和融合都要能指着"这一个"，所以不能再按种类聚合
+    const rows=S.pool.map((x,idx)=>({x,idx}))
+      .sort((a,b)=>{
+        const ea=enchOf(a.x.uid)?1:0, eb=enchOf(b.x.uid)?1:0;
+        if(ea!==eb) return eb-ea;                       // 附魔过的置顶
+        const ga=S.growth[a.x.uid]||0, gb=S.growth[b.x.uid]||0;
+        if(ga!==gb) return gb-ga;                       // 养大的其次
+        return a.x.id<b.x.id?-1:a.x.id>b.x.id?1:0;      // 其余按种类聚在一起
+      })
+      .map(({x})=>{
+        const d=SYMBOLS[x.id], e=enchOf(x.uid), g=S.growth[x.uid]||0;
+        let tag="";
+        if(x.id==="moon"&&g) tag=`<span class="n">×${Math.pow(1.07,g).toFixed(2)}</span>`;
+        else if(x.id==="hole"&&g) tag=`<span class="n">×${Math.pow(1.15,g).toFixed(2)}</span>`;
+        else if(x.id==="seed"&&g) tag=`<span class="n">${g}/${mods().flags.seedFast?2:3}</span>`;
+        const can=S.tokens>0;
+        return `<span class="chip ${can?"pick":""} ${e?"ench":""}" ${can?`data-uid="${x.uid}"`:""}
+          title="${d.nm} — ${d.dsc}${e?"\n✦ "+ENCH[e].nm+"：" +ENCH[e].dsc:""}">
+          ${d.em} ${d.nm}${tag}${e?`<span class="ebadge">${ENCH[e].em}${ENCH[e].nm}</span>`:""}</span>`;
+      }).join("");
+    const cnt={}; S.pool.forEach(x=>cnt[x.id]=(cnt[x.id]||0)+1);
+    const kinds=Object.keys(cnt).length;
     open(`
       <h2>符号池</h2>
-      <p class="hint">共 ${S.pool.length} 个，每转随机上场 ${Math.min(CELLS,S.pool.length)} 个。
+      <p class="hint">共 <b style="color:var(--brass)">${S.pool.length}</b> 个（${kinds} 种），
+      每转随机上场 ${Math.min(CELLS,S.pool.length)} 个${S.pool.length>CELLS?`——超出的 ${S.pool.length-CELLS} 个这转不出现`:""}。
       ${S.tokens>0?`还有 <b style="color:var(--cinnabar)">${S.tokens}</b> 次整理，点一个扔掉。`:"没有整理次数了，商店可以买。"}</p>
       <div class="chips">${rows}</div>
       <div class="sheet-foot"><button id="closePool">合上</button></div>`);
-    sheet.querySelectorAll("[data-rm]").forEach(c=>c.onclick=()=>{
+    sheet.querySelectorAll("[data-uid]").forEach(c=>c.onclick=()=>{
       if(S.tokens<=0) return;
-      const i=S.pool.findIndex(x=>x.id===c.dataset.rm);
+      const uid=+c.dataset.uid;
+      const i=S.pool.findIndex(x=>x.uid===uid);
       if(i<0) return;
-      S.pool.splice(i,1); S.tokens--;
+      S.pool.splice(i,1); delete S.ench[uid]; delete S.growth[uid];
+      S.tokens--;
       const m=mods();
       if(m.perRemove) S.coins+=m.perRemove;
       if(S.items.includes("pawn")) S.counters.pawn+=90;
@@ -1631,18 +1891,31 @@
     el("spins").textContent=S.spinsLeft;
     el("period").textContent=S.period;
     el("level").textContent=Math.min(levelOf(S.period),TOTAL_LEVELS);
+    const ll=el("levelLabel");
+    if(ll) ll.innerHTML=S.endless
+      ? `无尽 · 第 <span id="level">${levelOf(S.period)-TOTAL_LEVELS}</span> 关`
+      : `第 <span id="level">${Math.min(levelOf(S.period),TOTAL_LEVELS)}</span>/${TOTAL_LEVELS} 关`;
     el("toRent").textContent=periodsToRent();
     const nb=el("notches");
     if(nb){
       const cur=Math.min(levelOf(S.period),TOTAL_LEVELS);
-      nb.innerHTML=Array.from({length:TOTAL_LEVELS},(_,i)=>{
-        const n=i+1;
-        return `<i class="${n<cur?"done":n===cur?"now":""}"></i>`;
-      }).join("");
+      if(S.endless){
+        nb.innerHTML=`<i class="done" style="flex:1"></i>`;
+      }else{
+        nb.innerHTML=Array.from({length:TOTAL_LEVELS},(_,i)=>{
+          const n=i+1;
+          return `<i class="${n<cur?"done":n===cur?"now":""}"></i>`;
+        }).join("");
+      }
     }
     el("poolCount").textContent=S.pool.length;
     el("tokens").textContent=S.tokens;
     el("gmul").textContent="×"+mods().globalMul.toFixed(2);
+    const sr=el("scoreRow");
+    if(sr){
+      sr.hidden=!S.endless;
+      if(S.endless) el("score").textContent=scoreText(Math.max(0,endlessLv()-1),S.earned);
+    }
     el("itemCount").textContent=S.items.length?`${S.items.length}/${Object.keys(ITEMS).length}`:"";
 
     const due=rentDue();
@@ -1707,6 +1980,9 @@
     if(t.id==="moon") extra=`<div class="pop-line">这一个已上场 <b>${g}</b> 次，当前倍率 <b>×${Math.pow(1.07,g).toFixed(2)}</b></div>`;
     if(t.id==="hole") extra=`<div class="pop-line">这一个已吞 <b>${g}</b> 个，当前倍率 <b>×${Math.pow(1.15,g).toFixed(2)}</b></div>`;
     if(t.id==="seed") extra=`<div class="pop-line">已积累 <b>${g}</b> 次，满 ${mods().flags.seedFast?2:3} 次长成树</div>`;
+    const e=enchOf(t.uid);
+    if(e) extra=`<div class="pop-line">✦ ${ENCH[e].em} ${ENCH[e].nm}　${ENCH[e].dsc}</div>`+extra;
+    if(t.tags&&t.tags.join()!==d.tags.join()) extra+=`<div class="pop-line" style="color:var(--bone-dim)">本转品类：${t.tags.join("、")}</div>`;
     if(t.pay>0) extra+=`<div class="pop-line">本转产出 <b>+${t.pay}</b></div>`;
     return `<div class="pop-head"><span class="pop-em">${d.em}</span>
       <span class="pop-nm">${d.nm}</span>
@@ -1729,8 +2005,8 @@
   }
 
   function init(){
-    S.pool=[];S.growth={};S.items=[];S.coins=0;S.period=1;S.spinNo=0;S.tokens=1;
-    S.counters={sack:0,pawn:0,rents:0};S.over=false;S.busy=false;S.removalsBought=0;S.rerolls=0;S.endless=false;
+    S.pool=[];S.growth={};S.ench={};S.encnt={};S.earned=0;S.items=[];S.coins=0;S.period=1;S.spinNo=0;S.tokens=1;
+    S.counters={sack:0,pawn:0,rents:0,ench:0};S.over=false;S.busy=false;S.removalsBought=0;S.rerolls=0;S.endless=false;
     uidSeq=0;shopStock=null;
     S.coins=OPENING_STAKE;
     S.spinsLeft=spinsPerPeriod();
@@ -1819,6 +2095,22 @@
   document.addEventListener("keydown",e=>{
     if(e.code==="Space"&&veil.hidden&&e.target!==lever){ e.preventDefault(); if(S.busy) skipFlag=true; else pullAndSpin(); }
   });
+
+  // 调试钩子：只在本地（file:// 或 127.0.0.1）暴露，线上不挂
+  if(location.hostname===""||location.hostname==="127.0.0.1"||location.hostname==="localhost"){
+    window.__dev={S,ENCH,SYMBOLS,ITEMS,
+      enterEndless(lv=1,coins=99999){
+        S.endless=true; S.counters.ench=0;
+        S.period=TOTAL_PERIODS+(lv-1)*ENDLESS_PERIODS+1;
+        S.coins=coins; S.spinsLeft=spinsPerPeriod(); render();
+        return {关:levelOf(S.period),期:S.period,租金:rentDue()};
+      },
+      openBench(){ openBench(()=>close()); return "opened"; },
+      openShop(){ shopStock=null; openShop(0); return "opened"; },
+      state(){ return {关:levelOf(S.period),无尽:S.endless,铜钱:S.coins,
+                       池子:S.pool.length,附魔:{...S.ench},累计:S.earned}; }
+    };
+  }
 
   init();
 })();
