@@ -1,0 +1,1820 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="幸运硬币 —— 当铺主题的老虎机 roguelike。拉下拉杆，凑出你自己的符号组合，赶在房东上门前把租金挣出来。">
+<meta name="theme-color" content="#0A0C11">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🪙</text></svg>">
+<style>html,body{margin:0;padding:0}</style>
+</head>
+<body>
+<title>幸运硬币</title>
+<style>
+  /* ================= 幸运硬币 · 灯下柜台 =================
+     深夜当铺:一页夜墨,一盏挂灯,灯底下是柜台与账本。
+     灯金主照明,朱砂管债与印,票纸只出现在柜面交易里。 */
+  :root{
+    --night:#0A0C11;            /* 夜墨 · 页面底色 */
+    --wood:#1B130B;             /* 柜木 · 面板 */
+    --wood-2:#241A0E;
+    --wood-3:#2E2113;
+    --lamp:#E2A93F;             /* 灯金 · 主强调 */
+    --lamp-hot:#F5CE6B;         /* 高光金 */
+    --cinnabar:#C33E2A;         /* 朱砂 · 债、印、危险 */
+    --cinnabar-hot:#D84E34;
+    --jade:#63A98C;             /* 翡翠 · 进账、余裕 */
+    --paper:#EDE2C8;            /* 票纸 · 当票卡片 */
+    --paper-2:#E0D0AC;
+    --ink2:#2C2214;             /* 票面墨色 */
+    --bone:#E9DFC8;             /* 暗底主文字 */
+    --dim:#9C8F76;              /* 暗底次文字 */
+    --line:rgba(226,169,63,.16);
+    --line-strong:rgba(226,169,63,.38);
+
+    --display:"Songti SC","STSong","Noto Serif CJK SC","Source Han Serif SC",serif;
+    --hand:"Kaiti SC","STKaiti","KaiTi","Kaiti TC",serif;
+    --body:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+    --num:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+
+    --gap:clamp(12px,1.6vw,20px);
+  }
+
+  *{box-sizing:border-box}
+
+  body{
+    margin:0;min-height:100vh;
+    background:var(--night);
+    color:var(--bone);
+    font-family:var(--body);font-size:15px;line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .wrap{
+    position:relative;max-width:1140px;margin:0 auto;
+    padding:clamp(16px,3vw,32px) var(--gap) 64px;
+    display:flex;flex-direction:column;gap:var(--gap);
+  }
+  /* 夜色:右上一池灯光,四围暗下去 */
+  .wrap::before{
+    content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+    background:
+      radial-gradient(44% 32% at 78% -6%, rgba(226,169,63,.15), transparent 70%),
+      radial-gradient(150% 120% at 50% 55%, transparent 55%, rgba(3,4,7,.6) 100%);
+  }
+  .wrap>*{position:relative;z-index:1}
+
+  /* ---------- 牌匾 ---------- */
+  .signboard{
+    position:relative;margin-top:34px;
+    display:flex;align-items:center;justify-content:space-between;
+    flex-wrap:wrap;gap:8px 20px;padding:15px 24px;
+    background:linear-gradient(180deg,#2C2011,#1A1109 72%);
+    border:1px solid var(--line-strong);border-radius:4px;
+    box-shadow:
+      inset 0 1px 0 rgba(245,206,107,.14),
+      inset 0 0 0 3px rgba(9,6,3,.7),
+      inset 0 0 0 4px rgba(226,169,63,.2),
+      0 16px 36px rgba(0,0,0,.55);
+  }
+  .plaque-title{display:flex;align-items:center;gap:15px;min-width:0}
+  .signboard h1{
+    font-family:var(--display);font-size:clamp(26px,4vw,36px);font-weight:600;
+    letter-spacing:.22em;margin:0;text-wrap:balance;
+    background:linear-gradient(180deg,var(--lamp-hot) 10%,var(--lamp) 52%,#96700F);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));
+  }
+  .seal{
+    flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
+    width:34px;height:34px;border-radius:4px;transform:rotate(-4deg);
+    font-family:var(--display);font-size:21px;font-weight:700;color:#F6E9D2;
+    background:radial-gradient(circle at 36% 30%,var(--cinnabar-hot),#8E2B1C 78%);
+    box-shadow:inset 0 0 0 2px rgba(246,233,210,.28),inset 0 -2px 5px rgba(0,0,0,.35),
+               0 3px 8px rgba(0,0,0,.5);
+  }
+  .signboard .sub{
+    font-family:var(--hand);font-size:13px;letter-spacing:.34em;color:var(--dim);
+    padding-right:60px;
+  }
+
+  /* ---------- 挂灯(招牌角上那盏) ---------- */
+  .lantern{
+    position:absolute;top:-32px;right:22px;width:64px;z-index:2;
+    pointer-events:none;transform-origin:50% 0;
+    animation:sway 7.5s ease-in-out infinite;
+  }
+  .lantern svg{
+    display:block;width:100%;height:auto;
+    filter:drop-shadow(0 0 16px rgba(245,178,80,.5)) drop-shadow(0 8px 18px rgba(0,0,0,.55));
+  }
+  @keyframes sway{0%,100%{transform:rotate(1.7deg)}50%{transform:rotate(-1.7deg)}}
+  @media (max-width:640px){
+    .lantern{width:48px;top:-24px;right:14px}
+    .signboard .sub{padding-right:44px}
+  }
+
+  .board{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:var(--gap);align-items:start}
+  @media (max-width:880px){.board{grid-template-columns:minmax(0,1fr)}}
+
+  .panel{
+    border:1px solid var(--line);border-radius:4px;padding:var(--gap);
+    background:
+      radial-gradient(150% 80% at 90% -10%, rgba(226,169,63,.08), transparent 55%),
+      linear-gradient(180deg,var(--wood-2),var(--wood));
+    box-shadow:inset 0 1px 0 rgba(245,206,107,.07),0 12px 30px rgba(0,0,0,.42);
+  }
+
+  .machine{display:flex;flex-direction:column;gap:var(--gap)}
+  .cabinet{display:flex;gap:12px;align-items:stretch}
+  .cabinet .grid{flex:1;min-width:0}
+
+  /* ---------- 货架格 ---------- */
+  .grid{
+    display:grid;grid-template-columns:repeat(var(--cols,6),minmax(0,1fr));gap:5px;
+    padding:10px;border-radius:4px;cursor:default;
+    background:linear-gradient(180deg,#0F0A05,#150E07);
+    border:1px solid rgba(226,169,63,.22);
+    box-shadow:inset 0 2px 14px rgba(0,0,0,.78),inset 0 0 0 1px rgba(0,0,0,.45);
+  }
+  .grid.skippable{cursor:pointer}
+  .grid.rolling{box-shadow:inset 0 2px 14px rgba(0,0,0,.78),inset 0 0 40px rgba(0,0,0,.7)}
+
+  .cell{
+    position:relative;aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(180deg,#181008,#0F0904);
+    border:1px solid rgba(226,169,63,.10);border-radius:3px;
+    box-shadow:inset 0 2px 7px rgba(0,0,0,.68),inset 0 -1px 0 rgba(245,206,107,.05);
+    font-size:clamp(19px,3.1vw,32px);line-height:1;user-select:none;
+    transition:transform .16s ease,border-color .16s ease,background .16s ease,box-shadow .16s ease;
+  }
+  /* 稀有度:格口上沿的一道记号 */
+  .cell::before{
+    content:"";position:absolute;top:3px;left:50%;transform:translateX(-50%);
+    width:34%;height:2px;border-radius:2px;background:rgba(233,223,200,.10);
+  }
+  .cell.r-uncommon::before{background:rgba(99,169,140,.7)}
+  .cell.r-rare::before{background:rgba(226,169,63,.85)}
+  .cell.r-legend::before{background:var(--cinnabar-hot);box-shadow:0 0 8px rgba(216,78,52,.85)}
+  .cell.filled{background:linear-gradient(180deg,#251B0E,#1A1109);border-color:rgba(226,169,63,.19)}
+  .cell.rolling{background:linear-gradient(180deg,#251B0E,#181008);border-color:rgba(226,169,63,.16)}
+  .cell.rolling .glyph{filter:blur(1.4px) drop-shadow(0 2px 4px rgba(0,0,0,.5));opacity:.82}
+  .cell.stopped{animation:thunk .26s cubic-bezier(.2,1.7,.35,1) both}
+  @keyframes thunk{
+    0%{transform:translateY(-9px) scaleY(1.16)}
+    55%{transform:translateY(2px) scaleY(.94)}
+    100%{transform:none}
+  }
+  .cell.landing{animation:land .26s cubic-bezier(.2,1.4,.5,1) both}
+  @keyframes land{0%{transform:translateY(-14px) scale(.82);opacity:0}100%{transform:none;opacity:1}}
+  .cell.paying{
+    border-color:var(--lamp-hot);
+    background:linear-gradient(180deg,#4B3617,#33230E);
+    box-shadow:0 0 0 2px var(--lamp-hot),0 0 30px rgba(226,169,63,.55),
+               inset 0 0 22px rgba(245,206,107,.26);
+    transform:scale(1.15);z-index:3;
+    transition:transform .1s cubic-bezier(.2,1.6,.4,1),box-shadow .1s ease,background .1s ease;
+  }
+  .cell.paying::after{
+    content:"";position:absolute;inset:-3px;border:2px solid var(--lamp-hot);border-radius:4px;
+    animation:ring .5s ease-out forwards;pointer-events:none;
+  }
+  @keyframes ring{
+    0%{transform:scale(1);opacity:.9}
+    100%{transform:scale(1.5);opacity:0}
+  }
+  .cell.wrecked{
+    border-color:rgba(195,62,42,.65);
+    background:linear-gradient(180deg,rgba(195,62,42,.18),rgba(195,62,42,.07));
+  }
+  .cell .pay{
+    position:absolute;right:3px;bottom:1px;font-family:var(--num);font-size:12px;
+    font-weight:700;color:var(--jade);font-variant-numeric:tabular-nums;opacity:0;
+    text-shadow:0 1px 3px rgba(0,0,0,.85);
+  }
+  .cell .pay.show{opacity:1;animation:paypop .32s cubic-bezier(.2,1.6,.4,1) both}
+  @keyframes paypop{
+    0%{opacity:0;transform:translateY(4px) scale(.5)}
+    60%{opacity:1;transform:translateY(0) scale(1.25)}
+    100%{opacity:1;transform:none}
+  }
+  .cell .pay.zero{color:var(--dim);opacity:.45}
+  .cell .glyph{filter:drop-shadow(0 2px 4px rgba(0,0,0,.55))}
+
+  .coinfly{
+    position:fixed;z-index:60;pointer-events:none;font-size:19px;
+    font-family:var(--num);font-weight:800;color:var(--lamp-hot);
+    text-shadow:0 0 12px rgba(226,169,63,.75),0 2px 6px rgba(0,0,0,.85);
+    transition:transform .72s cubic-bezier(.34,.02,.28,1),opacity .72s ease-in;
+  }
+
+  /* ---------- 拉杆(黄铜板,上沿两枚铆钉) ---------- */
+  .lever-rail{
+    position:relative;width:56px;flex:0 0 56px;border-radius:4px;
+    background:linear-gradient(180deg,#261B0E,#150D07);
+    border:1px solid var(--line-strong);cursor:grab;touch-action:none;user-select:none;
+    display:flex;align-items:flex-start;justify-content:center;
+    box-shadow:inset 0 1px 0 rgba(245,206,107,.12),inset 0 0 18px rgba(0,0,0,.5);
+  }
+  .lever-rail::before,.lever-rail::after{
+    content:"";position:absolute;top:7px;width:6px;height:6px;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#EFD08A,#8A6A25 62%,#4A360F);
+    box-shadow:inset 0 -1px 1px rgba(0,0,0,.6);
+  }
+  .lever-rail::before{left:7px}
+  .lever-rail::after{right:7px}
+  .lever-rail:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
+  .lever-rail.disabled{opacity:.45;cursor:not-allowed}
+  .lever-rail.grabbing{cursor:grabbing}
+  .lever-track{
+    position:absolute;top:14px;bottom:14px;left:50%;width:7px;margin-left:-3.5px;
+    border-radius:4px;background:#0A0603;box-shadow:inset 0 0 6px rgba(0,0,0,.9);
+  }
+  .lever-arm{
+    position:absolute;top:6px;left:50%;width:34px;margin-left:-17px;
+    display:flex;flex-direction:column;align-items:center;
+    transform:translateY(var(--pull,0px));
+    transition:transform .42s cubic-bezier(.22,1.5,.4,1);
+    will-change:transform;
+  }
+  .lever-arm.dragging{transition:none}
+  .lever-rod{
+    width:7px;height:26px;border-radius:4px;
+    background:linear-gradient(90deg,#7A5F22,var(--lamp) 45%,#8A6E24);
+    box-shadow:0 2px 6px rgba(0,0,0,.6);
+  }
+  .lever-knob{
+    width:30px;height:30px;border-radius:50%;margin-top:-3px;
+    background:radial-gradient(circle at 34% 30%,#E8604C,#8E2B21 62%,#57170F);
+    box-shadow:0 4px 12px rgba(0,0,0,.7),inset 0 -3px 6px rgba(0,0,0,.45),
+               inset 0 3px 6px rgba(255,255,255,.24);
+  }
+  .lever-hint{
+    position:absolute;bottom:12px;left:0;right:0;text-align:center;
+    font-family:var(--hand);font-size:14px;letter-spacing:.3em;
+    color:#A8842F;pointer-events:none;transition:opacity .25s ease;
+  }
+  .lever-rail.pulled .lever-hint{opacity:0}
+  .lever-tip{font-size:12.5px;color:var(--dim);align-self:center;letter-spacing:.06em}
+  @media (max-width:520px){ .lever-rail{width:46px;flex-basis:46px} }
+
+  /* ---------- 唱票条 ---------- */
+  .beat{
+    display:flex;align-items:center;gap:12px;min-height:56px;padding:10px 16px;
+    background:linear-gradient(180deg,rgba(245,206,107,.06),transparent 42%),#130D07;
+    border:1px solid rgba(226,169,63,.22);border-radius:3px;
+    box-shadow:inset 0 2px 10px rgba(0,0,0,.62);
+    transition:border-color .2s ease,background .2s ease,box-shadow .2s ease;
+  }
+  .beat.hot{border-color:var(--lamp);background:linear-gradient(180deg,#2B1F10,#1E150B)}
+  .beat.big{
+    border-color:var(--lamp-hot);background:linear-gradient(180deg,#3A2A12,#281C0D);
+    box-shadow:0 0 26px rgba(226,169,63,.28),inset 0 2px 10px rgba(0,0,0,.5);
+  }
+  .beat-em{font-size:26px;line-height:1;min-width:30px}
+  .beat-nm{font-family:var(--display);font-size:17px;letter-spacing:.1em;color:var(--bone)}
+  .beat-amt{
+    margin-left:auto;font-family:var(--num);font-size:26px;font-weight:800;
+    color:var(--lamp-hot);font-variant-numeric:tabular-nums;
+    text-shadow:0 0 16px rgba(226,169,63,.55);
+  }
+  .beat.amtpop .beat-amt{animation:beatpop .34s cubic-bezier(.2,1.6,.4,1) both}
+  @keyframes beatpop{0%{transform:scale(.5);opacity:0}60%{transform:scale(1.22);opacity:1}100%{transform:none}}
+  .breakdown{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--dim)}
+  .breakdown b{color:var(--lamp);font-family:var(--num);font-weight:700}
+
+  /* ---------- 按钮 ---------- */
+  .lever{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
+  button{
+    font-family:var(--body);font-size:13.5px;letter-spacing:.16em;color:var(--bone);
+    background:linear-gradient(180deg,#2F2213,#1E140B);
+    border:1px solid var(--line-strong);border-radius:3px;padding:11px 18px;cursor:pointer;
+    box-shadow:inset 0 1px 0 rgba(245,206,107,.13),0 3px 8px rgba(0,0,0,.38);
+    transition:background .15s ease,border-color .15s ease,color .15s ease,
+               opacity .15s ease,transform .15s ease,box-shadow .15s ease;
+  }
+  button:hover:not(:disabled){
+    background:linear-gradient(180deg,#3B2B18,#261A10);
+    border-color:var(--lamp);transform:translateY(-1px);
+    box-shadow:inset 0 1px 0 rgba(245,206,107,.16),0 6px 14px rgba(0,0,0,.45);
+  }
+  button:active:not(:disabled){transform:translateY(0)}
+  button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
+  button:disabled{opacity:.38;cursor:not-allowed}
+  .mini{padding:4px 10px;font-size:12px;margin-left:8px;vertical-align:middle}
+  /* 每张单据收尾的那颗钮 = 落印 */
+  .sheet-foot button:last-child{
+    background:linear-gradient(180deg,var(--cinnabar-hot),#9E2C1B);
+    border-color:#E0704F;color:#FBF2E0;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 4px 14px rgba(195,62,42,.4);
+  }
+  .sheet-foot button:last-child:hover:not(:disabled){
+    background:linear-gradient(180deg,#E35C40,#AC3320);border-color:#F08A62;
+  }
+
+  /* ---------- 账本 ---------- */
+  .ledger{display:flex;flex-direction:column;gap:var(--gap);position:relative}
+  /* 线装书脊的一道缝线 */
+  .ledger::before{
+    content:"";position:absolute;left:7px;top:12px;bottom:12px;
+    border-left:2px dashed rgba(195,62,42,.38);pointer-events:none;
+  }
+  .stat{
+    display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+    padding:7px 0;border-bottom:1px dashed rgba(226,169,63,.16);
+  }
+  .stat:last-child{border-bottom:0}
+  .stat .k{font-family:var(--hand);font-size:13.5px;letter-spacing:.18em;color:var(--dim)}
+  .stat .v{font-family:var(--num);font-size:19px;font-weight:600;font-variant-numeric:tabular-nums}
+  .v.coin{color:var(--lamp)}
+  .v.rent{color:#DE6A50}
+  .v.small{font-size:15px}
+  .coin-bump{animation:bump .3s cubic-bezier(.2,1.5,.4,1)}
+  @keyframes bump{0%{transform:scale(1)}40%{transform:scale(1.3);color:#FFE9A3;text-shadow:0 0 16px rgba(226,169,63,.85)}100%{transform:scale(1)}}
+
+  .meter{
+    height:6px;background:#0C0804;border-radius:3px;overflow:hidden;margin-top:4px;
+    box-shadow:inset 0 1px 3px rgba(0,0,0,.85);
+  }
+  .meter i{display:block;height:100%;background:linear-gradient(90deg,#3E7A5F,var(--jade));transition:width .4s ease}
+  .meter.short i{background:linear-gradient(90deg,#8E2B1C,var(--cinnabar-hot))}
+
+  .section-title{
+    font-family:var(--hand);font-size:14px;letter-spacing:.3em;color:#B08D3F;
+    margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--line);
+  }
+
+  /* ---------- 当印:十关进度 ---------- */
+  .notches{display:flex;gap:7px;margin:6px 0 10px}
+  .notches i{
+    width:16px;height:16px;border-radius:3px;
+    border:1.5px solid rgba(156,143,118,.35);background:rgba(233,223,200,.04);
+    box-shadow:inset 0 1px 2px rgba(0,0,0,.45);
+  }
+  .notches i.done{
+    background:radial-gradient(circle at 38% 32%,var(--cinnabar-hot),#8E2B1C 78%);
+    border-color:#8E2B1C;
+    box-shadow:inset 0 1px 2px rgba(255,255,255,.12),0 2px 4px rgba(0,0,0,.4);
+  }
+  .notches i.now{
+    border-color:var(--lamp);animation:sealpulse 1.8s ease-in-out infinite;
+  }
+  @keyframes sealpulse{
+    0%,100%{box-shadow:0 0 3px rgba(226,169,63,.25),inset 0 1px 2px rgba(0,0,0,.45)}
+    50%{box-shadow:0 0 12px rgba(226,169,63,.7),inset 0 1px 2px rgba(0,0,0,.45)}
+  }
+
+  .chips{display:flex;flex-wrap:wrap;gap:5px}
+  .chip{
+    display:inline-flex;align-items:center;gap:4px;padding:3px 8px;
+    background:linear-gradient(180deg,#241A0E,#170F08);
+    border:1px solid var(--line);border-radius:3px;font-size:12px;cursor:default;
+    box-shadow:inset 0 1px 0 rgba(245,206,107,.07);
+    transition:border-color .15s ease,background .15s ease;
+  }
+  .chip .n{font-family:var(--num);color:var(--dim);font-size:11px}
+  /* 卡片是纸底，里面的 chip 不能再用深底 —— 深底配继承来的墨色字 = 全黑一片 */
+  .offer .chip{
+    background:rgba(255,252,242,.66);
+    border-color:rgba(92,72,38,.30);
+    color:var(--ink2);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.5);
+  }
+  .offer .chips{gap:6px}
+  .chip.pick{cursor:pointer}
+  .chip.pick:hover{border-color:var(--cinnabar-hot);background:rgba(195,62,42,.16)}
+  .chip.info{cursor:pointer}
+  .chip.info:hover{border-color:var(--lamp);background:var(--wood-3)}
+  .empty-note{font-size:12px;color:var(--dim)}
+
+  /* ---------- 弹签(说明浮条,也是纸的) ---------- */
+  /* 浮签。报幕条的动画类已改名为 .amtpop，不再与此冲突（根治于 JS，非 :not 绕开） */
+  .pop{
+    position:fixed;z-index:70;max-width:280px;
+    background:linear-gradient(180deg,var(--paper),var(--paper-2));
+    color:var(--ink2);
+    border:1px solid #B0965F;border-radius:3px;
+    padding:12px 14px;box-shadow:0 12px 34px rgba(0,0,0,.65);
+    animation:popin .16s ease-out both;
+  }
+  .pop[hidden]{display:none}
+  @keyframes popin{from{opacity:0;transform:translateY(5px) scale(.97)}to{opacity:1;transform:none}}
+  .pop-head{display:flex;align-items:center;gap:9px;margin-bottom:7px}
+  .pop-em{font-size:26px;line-height:1}
+  .pop-nm{font-family:var(--display);font-size:17px;letter-spacing:.08em;color:var(--ink2)}
+  .pop-tag{
+    margin-left:auto;font-size:10px;letter-spacing:.16em;padding:1px 5px;
+    border:1px solid currentColor;border-radius:2px;white-space:nowrap;
+  }
+  .pop-dsc{font-size:13px;color:#5B4D31;line-height:1.6}
+  .pop-line{
+    margin-top:8px;padding-top:8px;border-top:1px dashed rgba(44,34,20,.28);
+    font-size:12.5px;color:#2E7D5B;
+  }
+  .pop-line b{color:#8A6511;font-family:var(--num)}
+
+  /* ---------- 柜面(商店 / 池子 / 道具册) ---------- */
+  .veil{
+    position:fixed;inset:0;background:rgba(5,6,10,.82);display:flex;align-items:center;
+    justify-content:center;padding:20px;z-index:40;animation:fade .2s ease both;
+    backdrop-filter:blur(3px);
+  }
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .veil[hidden]{display:none}
+  .sheet{
+    width:min(780px,100%);max-height:90vh;overflow-y:auto;
+    background:linear-gradient(180deg,#221810,var(--wood));
+    border:1px solid var(--line-strong);border-radius:4px;padding:clamp(18px,3vw,28px);
+    box-shadow:0 24px 60px rgba(0,0,0,.6),inset 0 1px 0 rgba(245,206,107,.08);
+    scrollbar-width:thin;scrollbar-color:#5C4A22 transparent;
+  }
+  .sheet::-webkit-scrollbar{width:8px}
+  .sheet::-webkit-scrollbar-thumb{background:#5C4A22;border-radius:4px}
+  .sheet::-webkit-scrollbar-track{background:transparent}
+  .sheet h2{
+    font-family:var(--display);font-size:20px;letter-spacing:.22em;font-weight:600;
+    margin:0 0 4px;color:var(--lamp);
+  }
+  .sheet .hint{font-size:13px;color:var(--dim);margin:0 0 18px}
+  .sheet .purse{
+    float:right;font-family:var(--num);font-size:15px;color:var(--lamp);
+    font-variant-numeric:tabular-nums;
+  }
+
+  /* ---------- 当票(可买的符号 / 道具) ---------- */
+  .offers{display:grid;grid-template-columns:repeat(auto-fit,minmax(172px,1fr));gap:10px}
+  .offer{
+    display:flex;flex-direction:column;gap:6px;text-align:left;padding:13px;
+    font-size:14px;letter-spacing:normal;color:var(--ink2);
+    background:linear-gradient(180deg,var(--paper),var(--paper-2));
+    border:1px solid #B0965F;border-radius:3px;cursor:pointer;
+    box-shadow:0 2px 0 rgba(0,0,0,.3),inset 0 0 26px rgba(176,150,95,.16);
+    transition:border-color .15s ease,transform .15s ease,box-shadow .15s ease,opacity .15s ease;
+  }
+  .offer:hover:not(:disabled){
+    border-color:#8A6511;transform:translateY(-2px);
+    box-shadow:0 9px 20px rgba(0,0,0,.42),inset 0 0 26px rgba(176,150,95,.16);
+  }
+  .offer:disabled{opacity:.55;cursor:not-allowed;filter:grayscale(.45)}
+  .offer .top{display:flex;align-items:center;gap:9px}
+  .offer .em{font-size:26px;line-height:1}
+  .offer .nm{font-family:var(--display);font-size:16px;letter-spacing:.06em;color:var(--ink2)}
+  .offer .tagline{
+    font-size:10px;letter-spacing:.18em;padding:1px 5px;border:1px solid currentColor;
+    border-radius:2px;margin-left:auto;white-space:nowrap;
+  }
+  /* 稀有度:票面上的印色 */
+  .r-common{color:#6B5F49}
+  .r-uncommon{color:#2E7D5B}
+  .r-rare{color:#8A6511}
+  .r-legend{color:#B23A24}
+  .offer .meta{font-family:var(--num);font-size:12px;font-weight:700;color:#8A6511;font-variant-numeric:tabular-nums}
+  .offer .dsc{font-size:12.5px;color:#5B4D31;line-height:1.5}
+  .fam{font-size:10.5px;letter-spacing:.12em;color:var(--dim)}
+
+  .shop-sec{margin-top:20px}
+  .shop-sec:first-of-type{margin-top:0}
+  .sheet-foot{margin-top:18px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+
+  .tally{
+    font-family:var(--num);font-size:13px;font-variant-numeric:tabular-nums;
+    color:var(--dim);min-height:1.7em;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  }
+  .tally b{color:var(--jade);font-weight:600}
+  .tally .run{
+    color:var(--lamp-hot);font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;
+    text-shadow:0 0 14px rgba(226,169,63,.5);
+  }
+  .tally .skiphint{font-family:var(--hand);color:var(--dim);opacity:.7;font-size:12px;letter-spacing:.14em}
+
+  .over-num{font-family:var(--display);font-size:32px;color:var(--lamp);font-variant-numeric:tabular-nums}
+
+  footer{font-family:var(--hand);font-size:12.5px;color:var(--dim);text-align:center;letter-spacing:.16em}
+
+  @media (prefers-reduced-motion:reduce){
+    *{animation-duration:.001ms !important;transition-duration:.001ms !important}
+  }
+</style>
+
+<div class="wrap">
+  <header class="signboard">
+    <div class="plaque-title"><span class="seal">当</span><h1>幸运硬币</h1></div>
+    <span class="sub">当铺夜账 · v0.9</span>
+    <div class="lantern" aria-hidden="true">
+      <svg viewBox="0 0 80 112" xmlns="http://www.w3.org/2000/svg">
+        <line x1="40" y1="0" x2="40" y2="16" stroke="#7A5A22" stroke-width="2.5"/>
+        <rect x="29" y="16" width="22" height="7" rx="2.5" fill="#8A6A25"/>
+        <ellipse cx="40" cy="54" rx="27" ry="33" fill="url(#lampg)"/>
+        <ellipse cx="40" cy="54" rx="27" ry="33" fill="none" stroke="rgba(70,14,8,.5)" stroke-width="1.5"/>
+        <ellipse cx="40" cy="54" rx="17" ry="33" fill="none" stroke="rgba(70,14,8,.38)" stroke-width="1.2"/>
+        <ellipse cx="40" cy="54" rx="7.5" ry="33" fill="none" stroke="rgba(70,14,8,.3)" stroke-width="1"/>
+        <rect x="29" y="84" width="22" height="7" rx="2.5" fill="#8A6A25"/>
+        <line x1="40" y1="91" x2="40" y2="103" stroke="#A32E1D" stroke-width="2.5"/>
+        <path d="M35 103 h10 l-2.5 7 h-5 z" fill="#C33E2A"/>
+        <defs>
+          <radialGradient id="lampg" cx="42%" cy="34%" r="75%">
+            <stop offset="0%" stop-color="#F8C96A"/>
+            <stop offset="45%" stop-color="#DE6A35"/>
+            <stop offset="100%" stop-color="#8E2418"/>
+          </radialGradient>
+        </defs>
+      </svg>
+    </div>
+  </header>
+
+  <div class="board">
+    <section class="panel machine">
+      <div class="beat" id="beat" aria-live="polite">
+        <span class="beat-em" id="beatEm"></span>
+        <span class="beat-nm" id="beatNm">拉一次，看看今晚的手气</span>
+        <span class="beat-amt" id="beatAmt"></span>
+      </div>
+      <div class="cabinet">
+        <div class="grid" id="grid" style="--cols:6"></div>
+        <div class="lever-rail" id="lever" role="button" tabindex="0"
+             aria-label="拉杆，拉下开始转动">
+          <div class="lever-track"></div>
+          <div class="lever-arm" id="leverArm">
+            <div class="lever-rod"></div>
+            <div class="lever-knob"></div>
+          </div>
+          <div class="lever-hint" id="leverHint">拉</div>
+        </div>
+      </div>
+      <div class="tally" id="tally">拉一次，看看今晚的手气。</div>
+      <div class="lever">
+        <button id="openPool">符号池</button>
+        <button id="openItems">道具册</button>
+        <span class="lever-tip" id="spinTip">拉下右边的杆子（或按空格）</span>
+      </div>
+    </section>
+
+    <aside class="panel ledger">
+      <div>
+        <div class="stat"><span class="k">铜钱</span><span class="v coin" id="coins">0</span></div>
+        <div class="stat"><span class="k">本关租金</span><span class="v rent" id="rent">126</span></div>
+        <div class="stat"><span class="k">还剩几期交租</span><span class="v" id="toRent">4</span></div>
+        <div class="stat"><span class="k">本期剩余转数</span><span class="v" id="spins">5</span></div>
+        <div class="meter" id="meterBox"><i id="meter" style="width:0%"></i></div>
+      </div>
+      <div>
+        <h2 class="section-title">第 <span id="level">1</span>/5 关 · 第 <span id="period">1</span> 期</h2>
+        <div class="notches" id="notches" aria-hidden="true"></div>
+        <div class="stat"><span class="k">符号池</span><span class="v small" id="poolCount">5</span></div>
+        <div class="stat"><span class="k">整理次数</span><span class="v small" id="tokens">1</span></div>
+        <div class="stat"><span class="k">盘面倍率</span><span class="v small" id="gmul" style="color:var(--jade)">×1.00</span></div>
+      </div>
+      <div>
+        <h2 class="section-title">道具 <span id="itemCount" style="font-family:var(--num);color:var(--bone-dim)"></span></h2>
+        <div class="chips" id="items"><span class="empty-note">还没有。交上租，铺子才开门。</span></div>
+      </div>
+    </aside>
+  </div>
+
+  <footer>摧毁 = 永久移出符号池。塞得越多，好符号越稀。</footer>
+</div>
+
+<div class="veil" id="veil" hidden><div class="sheet" id="sheet"></div></div>
+
+<script>
+(() => {
+  "use strict";
+
+  const COLS=6, ROWS=5, CELLS=COLS*ROWS;
+  const ITEM_CAP=12;
+  const OPENING_STAKE=0;         // 本钱撤掉（按实玩要求）
+  // 道具位上限：想要新的就得舍掉旧的
+  const WRECK_FLOOR=16;          // 只作用于无差别摧毁（炸弹/黑洞）
+  const REDUCED = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ================= 符号 ================= */
+  const SYMBOLS = {
+    cherry:{nm:"樱桃",em:"🍒",base:1,rar:"common",tags:["水果"],dsc:"相邻每有 1 个樱桃，+2。",
+      phase:"value",fx:c=>{const n=c.near(t=>t.id==="cherry").length; if(n) c.add(c.t,2*n);}},
+    orange:{nm:"橘子",em:"🍊",base:3,rar:"common",tags:["水果"],dsc:"老实结钱，没有花样。"},
+    grape:{nm:"葡萄",em:"🍇",base:1,rar:"common",tags:["水果"],dsc:"相邻每有 1 个水果，+1。",
+      phase:"value",fx:c=>{const n=c.near(t=>c.tag(t,"水果")).length; if(n) c.add(c.t,n);}},
+    coin:{nm:"铜板",em:"🪙",base:2,rar:"common",tags:["器物"],dsc:"最稳的那个。"},
+    mouse:{nm:"鼠",em:"🐭",base:1,rar:"common",tags:["动物"],dsc:"摧毁相邻的奶酪，每个 +25。（奶酪永久移出池）",
+      phase:"wreck",fx:c=>{
+        c.near(t=>t.id==="cheese").forEach(t=>c.add(c.t,c.wreck(t,true)?25:2));
+        if(c.flag("mouseFruit")) c.near(t=>c.tag(t,"水果")).forEach(t=>c.add(c.t,c.wreck(t,true)?18:2));
+      }},
+    cheese:{nm:"奶酪",em:"🧀",base:4,rar:"common",tags:["食物"],dsc:"值钱，但招鼠。"},
+    cat:{nm:"猫",em:"🐈",base:2,rar:"common",tags:["动物"],dsc:"摧毁相邻的鼠，每个 +40。（鼠永久移出池）",
+      phase:"wreck",fx:c=>{
+        const mice=c.near(t=>t.id==="mouse");
+        if(c.flag("catNoEat")) mice.forEach(()=>c.add(c.t,22));
+        else mice.forEach(t=>c.add(c.t,c.wreck(t,true)?40:3));
+      }},
+    seed:{nm:"种子",em:"🌱",base:1,rar:"common",tags:["植物"],dsc:"出现满 3 次，长成树。",
+      phase:"value",fx:c=>{
+        const need=c.flag("seedFast")?2:3;
+        const n=(c.grow(c.t.uid)||0)+1; c.setGrow(c.t.uid,n);
+        if(n>=need){ c.morph(c.t,"tree"); c.setGrow(c.t.uid,0); c.note("一粒种子长成了树"); }
+      }},
+    dice:{nm:"骰子",em:"🎲",base:0,rar:"common",tags:["赌具"],dsc:"产出 1～7 之间随机。",
+      phase:"value",fx:c=>{
+        let v=1+Math.floor(Math.random()*7);
+        if(c.flag("diceX3")) v=Math.round(v*3);
+        else if(c.flag("diceX2")) v=Math.round(v*c.dbl());
+        c.add(c.t,v);
+      }},
+    wine:{nm:"酒",em:"🍶",base:2,rar:"common",tags:["器物"],dsc:"相邻每有 1 坛酒，+3。",
+      phase:"value",fx:c=>{const b=3+(c.flag("mellow")?2:0);const n=c.near(t=>t.id==="wine").length; if(n) c.add(c.t,b*n);}},
+    lantern:{nm:"灯笼",em:"🏮",base:1,rar:"common",tags:["器物"],dsc:"相邻每个符号 +1。",
+      phase:"value",fx:c=>{const b=c.flag("oil")?c.dbl():1; c.near(()=>true).forEach(t=>c.add(t,b));}},
+    abacus:{nm:"算盘",em:"🧮",base:2,rar:"common",tags:["器物"],dsc:"每持有 1 件道具，+2。",
+      phase:"value",fx:c=>{c.add(c.t,2*c.itemCount());}},
+
+    tree:{nm:"树",em:"🌳",base:5,rar:"uncommon",tags:["植物"],dsc:"相邻每有 1 粒种子，+3。",
+      phase:"value",fx:c=>{const n=c.near(t=>t.id==="seed").length; if(n) c.add(c.t,3*n);}},
+    lens:{nm:"放大镜",em:"🔍",base:0,rar:"uncommon",tags:["器物"],up:"orb",dsc:"相邻符号的产出 ×2。",
+      phase:"mult",fx:c=>{c.near(()=>true).forEach(t=>c.mult(t,2));}},
+    bomb:{nm:"炸弹",em:"💣",base:0,rar:"uncommon",tags:["器物"],dsc:"随机摧毁最多 3 个相邻符号，每个 +14（池子不足 16 时不炸，改 +4）。",
+      phase:"wreck",fx:c=>{c.pick(c.near(()=>true),3).forEach(t=>c.add(c.t,c.wreck(t)?14:4));}},
+    orb:{nm:"水晶球",em:"🔮",base:0,rar:"rare",tags:["器物"],dsc:"相邻符号的产出 ×3。",
+      phase:"mult",fx:c=>{c.near(()=>true).forEach(t=>c.mult(t,3));}},
+    bell:{nm:"铃铛",em:"🔔",base:2,rar:"uncommon",tags:["器物"],dsc:"每逢第 4 的倍数转，额外 +25。",
+      phase:"value",fx:c=>{if(c.spinNo()%4===0) c.add(c.t,25);}},
+    bear:{nm:"熊",em:"🐻",base:3,rar:"uncommon",tags:["动物"],dsc:"摧毁相邻的蜂蜜，每个 +80。（蜜永久移出池）",
+      phase:"wreck",fx:c=>{const b=80+(c.flag("hive")?40:0);c.near(t=>t.id==="honey").forEach(t=>c.add(c.t,c.wreck(t,true)?b:5));}},
+    honey:{nm:"蜂蜜",em:"🍯",base:5,rar:"uncommon",tags:["食物"],dsc:"熊很喜欢。"},
+    key:{nm:"钥匙",em:"🗝️",base:1,rar:"uncommon",tags:["器物"],dsc:"与相邻宝箱同归于尽，+150。（两者都永久移出池）",
+      phase:"wreck",fx:c=>{
+        const b=c.near(t=>t.id==="chest");
+        if(b.length){
+          const got=c.wreck(b[0],true);
+          c.add(c.t, got ? 150+(c.flag("locksmith")?150:0) : 12);
+          if(got && !c.flag("locksmith")) c.wreck(c.t,true);
+        }
+      }},
+    chest:{nm:"宝箱",em:"🧰",base:1,rar:"uncommon",tags:["器物"],dsc:"锁着。要钥匙。"},
+
+    moon:{nm:"月亮",em:"🌙",base:4,rar:"rare",tags:[],dsc:"每出现一次，自身倍率永久 ×1.07（复利）。",
+      phase:"mult",fx:c=>{
+        const n=(c.grow(c.t.uid)||0);
+        c.mult(c.t, Math.pow(c.flag("moonFast")?1.12:1.07, n));
+        c.setGrow(c.t.uid,n+1);
+      }},
+    gold:{nm:"金元宝",em:"💰",base:12,rar:"rare",tags:["器物"],dsc:"沉甸甸，不需要伙伴。"},
+    hole:{nm:"黑洞",em:"🕳️",base:6,rar:"rare",tags:[],dsc:"吞噬最多 2 个相邻符号，每吞 1 个自身倍率永久 ×1.15。",
+      phase:"wreck",fx:c=>{
+        const n=(c.grow(c.t.uid)||0);
+        c.mult(c.t, Math.pow(1.15,n));
+        let eaten=0;
+        c.pick(c.near(()=>true),2).forEach(t=>{ if(c.wreck(t)) eaten++; else c.add(c.t,4); });
+        if(eaten) c.setGrow(c.t.uid,n+eaten);
+      }},
+    dragon:{nm:"龙",em:"🐉",base:10,rar:"legend",tags:["动物"],dsc:"相邻符号产出 ×1.6，自己也算。",
+      phase:"mult",fx:c=>{ c.mult(c.t,1.6); c.near(()=>true).forEach(t=>c.mult(t,1.6)); }},
+    fortune:{nm:"财神",em:"🧧",base:8,rar:"legend",unique:true,tags:[],
+      dsc:"全局唯一。本转所有产出 ×1.5。",
+      phase:"mult",fx:c=>{ c.boardMul(1.5); }},
+  };
+  const RAR_W={common:100,uncommon:42,rare:14,legend:4};
+  const RAR_NM={common:"常见",uncommon:"少见",rare:"稀有",legend:"传说"};
+  const WRECKERS=["cat","bear","bomb","hole","key","mouse"];
+
+  /* ================= 道具（42 件 / 七族） ================= */
+  // apply(m) 改数值；pre(m) 只立 flag（先跑一轮，避免顺序依赖）
+  const ITEMS = {
+    /* —— 底钱族 —— */
+    magnet:{nm:"磁石",em:"🧲",fam:"底钱",tier:1,price:70,up:"magnetX",dsc:"每次转动额外 +10。",
+      apply:m=>{m.flat+=10;}},
+    magnetX:{nm:"天磁",em:"🌟",fam:"底钱",tier:2,price:150,dsc:"每次转动额外 +26，但租金 +5%。",
+      apply:m=>{m.flat+=26;m.rentMul*=1.05;}},
+    jar:{nm:"钱罐",em:"🏺",fam:"底钱",tier:1,price:75,up:"basin",dsc:"每转 +4，每持有 1 件道具再 +2（最多算 8 件）。",
+      apply:(m,S)=>{m.flat+=4+2*Math.min(S.items.length,8);}},
+    basin:{nm:"聚宝盆",em:"💠",fam:"底钱",tier:2,price:165,dsc:"每转 +10，每件道具再 +4（最多 8 件）；但每期自动塞 1 个常见符号。",
+      pre:m=>{m.flags.bloat=true;}, apply:(m,S)=>{m.flat+=10+4*Math.min(S.items.length,8);}},
+
+    /* —— 租约族 —— */
+    book:{nm:"账本",em:"📒",fam:"租约",tier:1,price:80,up:"bookX",dsc:"往后所有租金 -12%。",
+      apply:m=>{m.rentMul*=0.88;}},
+    bookX:{nm:"阴阳账",em:"📕",fam:"租约",tier:2,price:170,dsc:"租金 -30%，但商店一切价格 +35%。",
+      pre:m=>{m.flags.pricey=true;}, apply:m=>{m.rentMul*=0.70;}},
+    deed:{nm:"契约",em:"📜",fam:"租约",tier:1,price:85,up:"deedX",dsc:"每期多 1 次转动。",
+      apply:m=>{m.spinsAdd+=1;}},
+    deedX:{nm:"缓期书",em:"🗓️",fam:"租约",tier:2,price:175,dsc:"每期多 2 次转动，但租金 +8%。",
+      apply:m=>{m.spinsAdd+=2;m.rentMul*=1.08;}},
+    mortgage:{nm:"抵押票",em:"🏦",fam:"租约",tier:1,price:60,dsc:"买下时立刻得 200 铜钱，往后租金 +6%。",
+      apply:m=>{m.rentMul*=1.06;}, onBuy:S=>{S.coins+=200;}},
+    regular:{nm:"老主顾",em:"🤝",fam:"租约",tier:1,price:95,dsc:"每交上一次租，永久每转 +2（累加）。",
+      apply:(m,S)=>{m.flat+=2*(S.period-1);}},
+
+    /* —— 摧毁族 —— */
+    forge:{nm:"熔炉",em:"🔥",fam:"摧毁",tier:1,price:90,up:"forgeX",dsc:"每摧毁 1 个符号，额外 +12。",
+      apply:m=>{m.perWreck+=12;}},
+    forgeX:{nm:"炼炉",em:"⚗️",fam:"摧毁",tier:2,price:190,dsc:"每摧毁 1 个符号，额外 +28。",
+      apply:m=>{m.perWreck+=28;}},
+    sack:{nm:"拾荒袋",em:"🎒",fam:"摧毁",tier:1,price:80,dsc:"每摧毁 1 个符号，下一转 +6（累加，交租后清零）。",
+      apply:(m,S)=>{m.flat+=S.counters.sack;}},
+    funeral:{nm:"送葬钱",em:"⚰️",fam:"摧毁",tier:1,price:85,dsc:"每永久失去 1 个符号 +18（整理也算）。",
+      apply:m=>{m.perWreck+=18;m.perRemove+=18;}},
+    bone:{nm:"碎骨",em:"🦴",fam:"摧毁",tier:1,price:70,dsc:"猫鼠熊炸弹黑洞钥匙，各 +4。",
+      apply:m=>{m.tileAdd.push((t)=>WRECKERS.includes(t.id)?4:0);}},
+
+    /* —— 整理族 —— */
+    plier:{nm:"钳子",em:"🔧",fam:"整理",tier:1,price:65,dsc:"立刻多得 2 次整理机会。",
+      onBuy:S=>{S.tokens+=2;}},
+    pawn:{nm:"当票",em:"🧾",fam:"整理",tier:1,price:85,dsc:"多得 2 次整理；每次整理后，下一转 +90。",
+      onBuy:S=>{S.tokens+=2;}, apply:(m,S)=>{m.flat+=S.counters.pawn;}},
+    sieve:{nm:"筛子",em:"🪤",fam:"整理",tier:2,price:130,dsc:"每期开始，自动扔掉 1 个随机常见符号并 +25。",
+      pre:m=>{m.flags.sieve=true;}},
+    picky:{nm:"挑剔",em:"👓",fam:"整理",tier:1,price:100,up:"pickyX",dsc:"商店里多 1 个符号位。",
+      apply:m=>{m.offers=Math.max(m.offers,4);}},
+    pickyX:{nm:"慧眼",em:"🔮",fam:"整理",tier:2,price:195,dsc:"商店多 2 个符号位，且必有 1 个稀有以上。",
+      apply:m=>{m.offers=Math.max(m.offers,5);m.guarantee=true;}},
+
+    /* —— 符号族 —— */
+    basket:{nm:"竹篮",em:"🧺",fam:"符号",tier:1,price:75,up:"orchard",dsc:"所有水果 +1。",
+      apply:m=>{m.tileAdd.push((t,d)=>d.tags.includes("水果")?1:0);}},
+    orchard:{nm:"果园",em:"🌾",fam:"符号",tier:2,price:160,dsc:"所有水果 +3，水果相邻水果再 +1。",
+      pre:m=>{m.flags.orchard=true;}, apply:m=>{m.tileAdd.push((t,d)=>d.tags.includes("水果")?3:0);}},
+    mellow:{nm:"陈酿",em:"🍾",fam:"符号",tier:1,price:80,dsc:"酒 +4，且酒的相邻加成再 +2。",
+      pre:m=>{m.flags.mellow=true;}, apply:m=>{m.tileAdd.push(t=>t.id==="wine"?4:0);}},
+    catnest:{nm:"猫窝",em:"🏠",fam:"符号",tier:1,price:85,dsc:"猫不再吃鼠，改为每只相邻鼠 +22（鼠留在池里）。",
+      pre:m=>{m.flags.catNoEat=true;}},
+    poison:{nm:"鼠药",em:"☠️",fam:"符号",tier:1,price:80,dsc:"鼠 +6，且鼠还会吃相邻水果，每个 +4。",
+      pre:m=>{m.flags.mouseFruit=true;}, apply:m=>{m.tileAdd.push(t=>t.id==="mouse"?6:0);}},
+    string:{nm:"铜钱串",em:"🧵",fam:"符号",tier:1,price:70,dsc:"每个铜板 +4。",
+      apply:m=>{m.tileAdd.push(t=>t.id==="coin"?4:0);}},
+    rain:{nm:"春雨",em:"🌧️",fam:"符号",tier:1,price:90,dsc:"种子只需 2 次就长成树；树 +5。",
+      pre:m=>{m.flags.seedFast=true;}, apply:m=>{m.tileAdd.push(t=>t.id==="tree"?5:0);}},
+    hive:{nm:"蜂房",em:"🐝",fam:"符号",tier:1,price:85,dsc:"蜂蜜 +6，熊吃蜜额外 +40。",
+      pre:m=>{m.flags.hive=true;}, apply:m=>{m.tileAdd.push(t=>t.id==="honey"?6:0);}},
+    cup:{nm:"骰盅",em:"🥤",fam:"符号",tier:1,price:80,up:"license",dsc:"骰子的产出翻倍。",
+      pre:m=>{m.flags.diceX2=true;}},
+    license:{nm:"赌坊执照",em:"📋",fam:"符号",tier:2,price:170,dsc:"骰子产出 ×3，且每期第一转总产出翻倍。",
+      pre:m=>{m.flags.diceX3=true;m.flags.firstX2=true;}},
+    oil:{nm:"灯油",em:"🛢️",fam:"符号",tier:1,price:75,dsc:"灯笼给相邻的加成翻倍。",
+      pre:m=>{m.flags.oil=true;}},
+    orrery:{nm:"星盘",em:"🔭",fam:"符号",tier:1,price:90,dsc:"月亮的成长速度翻倍。",
+      pre:m=>{m.flags.moonFast=true;}},
+    locksmith:{nm:"锁匠",em:"🔐",fam:"符号",tier:2,price:150,dsc:"钥匙开箱 +150 且不被消耗；宝箱 +8。",
+      pre:m=>{m.flags.locksmith=true;}, apply:m=>{m.tileAdd.push(t=>t.id==="chest"?8:0);}},
+    cage:{nm:"兽笼",em:"🐾",fam:"符号",tier:1,price:85,dsc:"所有动物 +1。",
+      apply:m=>{m.tileAdd.push((t,d)=>d.tags.includes("动物")?1:0);}},
+    curio:{nm:"百宝箱",em:"🗃️",fam:"符号",tier:1,price:80,dsc:"所有器物 +1。",
+      apply:m=>{m.tileAdd.push((t,d)=>d.tags.includes("器物")?1:0);}},
+
+    /* —— 增强族（吃你已有的道具） —— */
+    smith:{nm:"铜匠",em:"🔨",fam:"增强",tier:2,price:140,dsc:"每持有 1 件「底钱」族道具，每转 +8。",
+      apply:(m,S)=>{m.flat+=8*S.items.filter(i=>ITEMS[i].fam==="底钱").length;}},
+    whet:{nm:"油石",em:"🪨",fam:"增强",tier:2,price:160,dsc:"所有「翻倍」类道具改为 ×2.5；放大镜与水晶球再 ×1.4。",
+      pre:m=>{m.flags.whet=true;}, apply:m=>{m.tileMul.push(t=>["lens","orb"].includes(t.id)?1.4:1);}},
+    matched:{nm:"配套",em:"🎴",fam:"增强",tier:2,price:155,dsc:"每有一族集齐 3 件，每转 +20（最多算 3 族）。",
+      apply:(m,S)=>{
+        const c={}; S.items.forEach(i=>{c[ITEMS[i].fam]=(c[ITEMS[i].fam]||0)+1;});
+        m.flat+=20*Math.min(3,Object.values(c).filter(n=>n>=3).length);
+      }},
+
+    /* —— 倍率族（只此两件，全局倍率不做军备竞赛） —— */
+    scale:{nm:"老秤",em:"⚖️",fam:"倍率",tier:1,price:110,dsc:"盘面产出 ×1.25。",
+      apply:m=>{m.globalMul*=1.25;}},
+    compound:{nm:"利滚利",em:"📈",fam:"倍率",tier:2,price:200,
+      dsc:"每交一次租，盘面产出永久再 ×1.12（累乘）。",
+      apply:(m,S)=>{m.globalMul*=Math.pow(1.12,S.counters.rents||0);}},
+
+    /* —— 赌性族 —— */
+    bet:{nm:"押注",em:"🎯",fam:"赌性",tier:1,price:75,dsc:"每转有 25% 的概率，总产出翻倍。",
+      pre:m=>{m.flags.bet=true;}},
+    blood:{nm:"血本",em:"🩸",fam:"赌性",tier:1,price:90,dsc:"租金 +20%，但所有符号 +1。",
+      apply:m=>{m.rentMul*=1.2;m.tileAdd.push(()=>1);}},
+    solo:{nm:"孤注",em:"🃏",fam:"赌性",tier:2,price:145,dsc:"符号池 ≤ 22 时，每转 +60。",
+      apply:(m,S)=>{if(S.pool.length<=22) m.flat+=60;}},
+    hoard:{nm:"贪多",em:"📦",fam:"赌性",tier:2,price:145,dsc:"符号池 ≥ 28 时，每转 +50。",
+      apply:(m,S)=>{if(S.pool.length>=28) m.flat+=50;}},
+  };
+
+  /* ========== 道具联动：成套才给倍率，单件只是加数 ========== */
+  const COMBOS=[
+    {need:["oil","curio"],      nm:"灯下看宝", dsc:"器物 ×1.35",
+      fn:m=>m.tileMul.push((t,d)=>d.tags.includes("器物")?1.35:1)},
+    {need:["forge","bone"],     nm:"炉火淬骨", dsc:"摧毁类符号 ×1.4",
+      fn:m=>m.tileMul.push(t=>WRECKERS.includes(t.id)?1.4:1)},
+    {need:["catnest","cage"],   nm:"六畜兴旺", dsc:"动物 ×1.4",
+      fn:m=>m.tileMul.push((t,d)=>d.tags.includes("动物")?1.4:1)},
+    {need:["rain","hive"],      nm:"风调雨顺", dsc:"植物与食物 ×1.4",
+      fn:m=>m.tileMul.push((t,d)=>(d.tags.includes("植物")||d.tags.includes("食物"))?1.4:1)},
+    {need:["mellow","basket"],  nm:"酒果同席", dsc:"水果与酒 ×1.35",
+      fn:m=>m.tileMul.push((t,d)=>(d.tags.includes("水果")||t.id==="wine")?1.35:1)},
+    {need:["license","bet"],    nm:"赌坊做局", dsc:"赌具 ×1.5",
+      fn:m=>m.tileMul.push((t,d)=>d.tags.includes("赌具")?1.5:1)},
+    {need:["string","smith"],   nm:"铜匠串钱", dsc:"铜板 ×1.6",
+      fn:m=>m.tileMul.push(t=>t.id==="coin"?1.6:1)},
+    {need:["orrery","whet"],    nm:"观星磨镜", dsc:"月亮与放大镜类 ×1.5",
+      fn:m=>m.tileMul.push(t=>["moon","lens","orb"].includes(t.id)?1.5:1)},
+  ];
+  function activeCombos(){ return COMBOS.filter(c=>c.need.every(id=>S.items.includes(id))); }
+
+  /* ========== 相关度：谁跟谁是一路的 ========== */
+  const ITEM_BOOST={
+    basket:{tags:["水果"]}, orchard:{tags:["水果"]}, mellow:{syms:["wine"]},
+    catnest:{syms:["cat","mouse"]}, poison:{syms:["mouse"]}, string:{syms:["coin"]},
+    rain:{syms:["seed","tree"]}, hive:{syms:["honey","bear"]},
+    cup:{tags:["赌具"]}, license:{tags:["赌具"]}, oil:{syms:["lantern"]},
+    orrery:{syms:["moon"]}, locksmith:{syms:["key","chest"]},
+    cage:{tags:["动物"]}, curio:{tags:["器物"]},
+    bone:{syms:WRECKERS}, forge:{syms:WRECKERS}, forgeX:{syms:WRECKERS},
+    sack:{syms:WRECKERS}, funeral:{syms:WRECKERS},
+  };
+  const PARTNER={
+    cat:["mouse"], mouse:["cheese","cat"], cheese:["mouse"],
+    bear:["honey"], honey:["bear"], key:["chest"], chest:["key"],
+    seed:["tree"], tree:["seed"], lantern:["coin"], lens:["gold","dragon"],
+  };
+  function poolHas(id){ return S.pool.some(x=>x.id===id); }
+  function itemRelevance(id){
+    const it=ITEMS[id]; let r=0;
+    COMBOS.forEach(c=>{
+      if(!c.need.includes(id)) return;
+      const miss=c.need.filter(x=>!S.items.includes(x));
+      if(miss.length===1&&miss[0]===id) r+=3;          // 就差它了
+      else if(miss.length<c.need.length) r+=1.5;       // 这组已经开了个头
+    });
+    if(S.items.filter(x=>ITEMS[x].fam===it.fam).length>=2) r+=1.5;   // 喂「配套」
+    const b=ITEM_BOOST[id];
+    if(b){
+      const n=S.pool.filter(x=>b.tags?b.tags.some(t=>SYMBOLS[x.id].tags.includes(t))
+                               :b.syms.includes(x.id)).length;
+      r+= n>=4?2 : n>=2?1 : 0;
+    }
+    return r;
+  }
+  function symRelevance(id){
+    const d=SYMBOLS[id]; let r=0;
+    (PARTNER[id]||[]).forEach(pid=>{ if(poolHas(pid)) r+=2; });
+    S.items.forEach(it=>{
+      const b=ITEM_BOOST[it]; if(!b) return;
+      if(b.syms&&b.syms.includes(id)) r+=1.5;
+      if(b.tags&&b.tags.some(t=>d.tags.includes(t))) r+=1;
+    });
+    if(d.tags.length){
+      const same=S.pool.filter(x=>SYMBOLS[x.id].tags.some(t=>d.tags.includes(t))).length;
+      if(same>=5) r+=1;
+    }
+    return r;
+  }
+  // 偏向强度随关数递增：前期让你看世界，后期让你走通
+  function biasK(){ return Math.min(0.42, 0.10+0.07*levelOf(S.period)); }
+
+  /* ================= 状态 ================= */
+  // 结构：5 期 = 1 关，10 关通关。租金是一张写死的表，不按收入百分比抽 ——
+  // 按百分比抽的话，你赚得越多被拿走越多，涨再快也没有变强的实感。
+  // 数值由模拟器反推：前七关正常玩就能过，压力全部放在最后三关。
+  // 主线是一条学习曲线：关卡不等长，前面短、后面长；机制分批开放。
+  const LEVEL_PERIODS=[2,3,3,3,3];               // 5 关 / 共 14 期 / 每期 5 转 = 70 转
+  const TOTAL_LEVELS=LEVEL_PERIODS.length;
+  const TOTAL_PERIODS=LEVEL_PERIODS.reduce((a,b)=>a+b,0);
+  const LEVEL_START=LEVEL_PERIODS.reduce((a,n,i)=>(a.push((a[i]||0)+n),a),[0]); // 各关起始期（0基前缀和）
+  const LEVEL_RENTS=[260, 620, 1400, 3000, 6300];   // 每关约 ×2.2，均匀爬坡（旧表前两跳 ×3.8/×3.7，后两跳仅 ×1.7/×1.46）
+  // 无尽模式：每关固定 5 期，租金按 ×1.7 续
+  const ENDLESS_PERIODS=5, ENDLESS_STEP=1.7;
+
+  function levelOf(p){
+    for(let i=0;i<TOTAL_LEVELS;i++) if(p<=LEVEL_START[i+1]) return i+1;
+    return TOTAL_LEVELS+Math.ceil((p-TOTAL_PERIODS)/ENDLESS_PERIODS);
+  }
+  function periodsInLevel(lv){ return lv<=TOTAL_LEVELS?LEVEL_PERIODS[lv-1]:ENDLESS_PERIODS; }
+  function levelFirstPeriod(lv){
+    return lv<=TOTAL_LEVELS?LEVEL_START[lv-1]+1:TOTAL_PERIODS+(lv-TOTAL_LEVELS-1)*ENDLESS_PERIODS+1;
+  }
+  function levelRentRaw(lv){
+    if(lv<=TOTAL_LEVELS) return LEVEL_RENTS[lv-1];
+    return Math.round(LEVEL_RENTS[TOTAL_LEVELS-1]*Math.pow(ENDLESS_STEP,lv-TOTAL_LEVELS));
+  }
+
+  // 机制分批开放 —— 教学关要教东西，不是一次性全泼给你
+  function unlocked(lv){
+    return {
+      rarities: lv>=4?["common","uncommon","rare","legend"]
+              : lv>=3?["common","uncommon","rare"]
+              : lv>=2?["common","uncommon"] : ["common"],
+      items:    lv>=2,                 // 第 2 关商店才开始卖道具
+      tier2:    lv>=4,                 // 高档道具第 4 关起
+    };
+  }
+
+  let uidSeq=0;
+  const S={pool:[],growth:{},items:[],coins:0,period:1,spinsLeft:5,spinNo:0,tokens:1,
+           counters:{sack:0,pawn:0,rents:0},over:false,busy:false,removalsBought:0,rerolls:0,endless:false};
+
+  const el=id=>document.getElementById(id);
+  const gridEl=el("grid"), veil=el("veil"), sheet=el("sheet");
+  const sleep=ms=>new Promise(r=>setTimeout(r,REDUCED?0:ms));
+
+  function addSym(id){ S.pool.push({uid:++uidSeq,id}); }
+  // 道具越囤越贵 —— 不封死堆叠，但让"再买一件"始终要跟"留着交租"打一架
+  // 价格锚定：以"本关租金摊到每期"为基准，随经济一起长。
+  // 不锚定租金总额 —— 租金是你必须留住的钱，不是你能花的钱。
+  // 价格基准独立成表，不挂在租金上 ——
+  // 挂在租金上会让两者互相绑死：调租金价格跟着动，永远调不出来。
+  const PRICE_REF=[140, 320, 700, 1200, 1900];
+  function priceRef(){
+    const lv=levelOf(S.period);
+    const up=mods().flags.pricey?1.35:1;
+    return up*(lv<=TOTAL_LEVELS ? PRICE_REF[lv-1]
+         : Math.round(PRICE_REF[TOTAL_LEVELS-1]*Math.pow(1.6,lv-TOTAL_LEVELS)));
+  }
+  // 刷新的真正代价不是那点刷新费，是它把整间铺子的价钱一起顶上去。
+  // 你可以一直刷到满意为止，但刷到那时候，你已经买不起了。
+  const SHOP_MARKUP=1.20;
+  function markup(){ return Math.pow(SHOP_MARKUP, S.rerolls); }
+    // 符号底价全程恒定：唯一会让它变贵的是本次进店刷新过几次，离店即清。
+  const SYM_PRICE={common:20,uncommon:45,rare:95,legend:170};
+  // 无尽模式：底价逐关上浮，且刷新造成的涨价会「继承」——
+  // 你这一局刷过的每一次，都永久留在价格上。想捞好货，代价是往后一直更贵。
+  const ENDLESS_PRICE_STEP=1.25;
+  function endlessScale(){
+    const lv=levelOf(S.period);
+    return lv<=TOTAL_LEVELS?1:Math.pow(ENDLESS_PRICE_STEP,lv-TOTAL_LEVELS);
+  }
+  // 符号价随池子大小上涨：不设限购，但囤得越多，下一个越贵。
+  // 否则"便宜的符号 + 开局本钱"= 第一次进店就把盘面灌满，整局的成长曲线当场走完。
+
+  function symPrice(id){ return Math.round(SYM_PRICE[SYMBOLS[id].rar]*markup()*endlessScale()); }
+  function itemPrice(id){
+    // 不再随持有数涨价：道具位只有 12 个，那已经是硬约束，再加价是双重惩罚。
+    const base=ITEMS[id].tier===2?0.62:0.34;
+    return Math.max(15, Math.round(priceRef()*base*markup()));
+  }
+
+  function mods(){
+    const m={flat:0,perWreck:0,perRemove:0,rentMul:1,spinsAdd:0,offers:3,
+             guarantee:false,tileAdd:[],tileMul:[],globalMul:1,flags:{}};
+    S.items.forEach(id=>{const f=ITEMS[id].pre; if(f) f(m,S);});
+    S.items.forEach(id=>{const f=ITEMS[id].apply; if(f) f(m,S);});
+    activeCombos().forEach(c=>c.fn(m,S));
+    return m;
+  }
+  function rentDue(){ return Math.max(1,Math.round(levelRentRaw(levelOf(S.period))*mods().rentMul)); }
+  function isRentPeriod(){
+    const lv=levelOf(S.period);
+    return S.period===levelFirstPeriod(lv)+periodsInLevel(lv)-1;
+  }
+  function periodsToRent(){
+    const lv=levelOf(S.period);
+    return levelFirstPeriod(lv)+periodsInLevel(lv)-1-S.period;
+  }
+  function periodInLevel(){ return S.period-levelFirstPeriod(levelOf(S.period))+1; }
+  function spinsPerPeriod(){ return Math.max(2, 5+mods().spinsAdd); }
+
+  /* ================= 结算 ================= */
+  function pickBoard(){
+    const bag=S.pool.slice();
+    for(let i=bag.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[bag[i],bag[j]]=[bag[j],bag[i]];}
+    const chosen=bag.slice(0,Math.min(CELLS,bag.length));
+    const slots=[...Array(CELLS).keys()];
+    for(let i=slots.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[slots[i],slots[j]]=[slots[j],slots[i]];}
+    const board=new Array(CELLS).fill(null);
+    chosen.forEach((inst,i)=>{
+      const p=slots[i];
+      board[p]={uid:inst.uid,id:inst.id,pos:p,r:Math.floor(p/COLS),c:p%COLS,
+                val:SYMBOLS[inst.id].base,gain:0,mul:1,dead:false,pay:0};
+    });
+    return board;
+  }
+
+  function resolve(board){
+    const m=mods();
+    const live=board.filter(Boolean);
+    const wreckedUids=new Set(), morphs=[], notes=[];
+
+    const ctx=t=>({
+      t,
+      near(pred){
+        const out=[];
+        for(let dr=-1;dr<=1;dr++) for(let dc=-1;dc<=1;dc++){
+          if(!dr&&!dc) continue;
+          const r=t.r+dr,c=t.c+dc;
+          if(r<0||r>=ROWS||c<0||c>=COLS) continue;
+          const n=board[r*COLS+c];
+          if(n&&!n.dead&&pred(n)) out.push(n);
+        }
+        return out;
+      },
+      // 不拦已摧毁的格子：钥匙这类"同归于尽"的，钱要算在它头上。
+      // 计价期 near() 已滤掉死格，不存在给尸体白加钱。
+      add(x,n){ if(x) x.gain+=n; },
+      mult(x,k){ if(x&&!x.dead) x.mul*=k; },
+      boardMul(k){ m.globalMul*=k; },
+      // 从候选里随机取最多 n 个 —— 摧毁类必须封顶，否则池子会死亡螺旋
+      pick(arr,n){
+        const a=arr.slice();
+        for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+        return a.slice(0,n);
+      },
+      // 地板只拦"无差别摧毁"（炸弹、黑洞）——那类不设防会把盘面剃秃。
+      // "定向捕食"（猫吃鼠、熊吃蜜、鼠吃奶酪、钥匙开箱）不受限：
+      // 那是玩家特意配对买来的组合，拦它等于让这套玩法不存在。
+      wreck(x,targeted){
+        if(!x||x.dead) return false;
+        if(!targeted && S.pool.length-wreckedUids.size<=WRECK_FLOOR) return false;
+        x.dead=true; wreckedUids.add(x.uid); return true;
+      },
+      morph(x,to){ morphs.push([x.uid,to]); },
+      tag(tile,tg){ return (SYMBOLS[tile.id].tags||[]).includes(tg); },
+      flag(k){ return !!m.flags[k]; },
+      dbl(){ return m.flags.whet?2.5:2; },
+      itemCount(){ return S.items.length; },
+      spinNo(){ return S.spinNo; },
+      grow(uid){ return S.growth[uid]; },
+      setGrow(uid,n){ S.growth[uid]=n; },
+      note(x){ notes.push(x); },
+    });
+
+    ["wreck","value","mult"].forEach(ph=>{
+      live.forEach(t=>{
+        if(t.dead) return;
+        const d=SYMBOLS[t.id];
+        if(d.phase===ph&&d.fx) d.fx(ctx(t));
+      });
+    });
+
+    // 道具的逐格加成
+    live.forEach(t=>{
+      if(t.dead) return;
+      const d=SYMBOLS[t.id];
+      m.tileAdd.forEach(fn=>{ t.gain += fn(t,d,S)||0; });
+      m.tileMul.forEach(fn=>{ t.mul *= (fn(t,d,S)||1); });
+    });
+    // 果园：水果相邻水果再 +2
+    if(m.flags.orchard){
+      live.forEach(t=>{
+        if(t.dead||!SYMBOLS[t.id].tags.includes("水果")) return;
+        const n=ctx(t).near(x=>SYMBOLS[x.id].tags.includes("水果")).length;
+        t.gain+=1*n;
+      });
+    }
+
+    let total=0;
+    live.forEach(t=>{
+      const raw=t.dead?t.gain:(t.val+t.gain);
+      t.pay=Math.max(0,Math.round(raw*t.mul));
+      total+=t.pay;
+    });
+
+    const wreckN=wreckedUids.size;
+    let extra=m.flat + wreckN*m.perWreck;
+    if(m.flags.firstX2 && S.spinsLeft===spinsPerPeriod()) total*=2;
+    if(m.flags.bet && Math.random()<0.25){ total*=2; notes.push("押注中了，产出翻倍"); }
+
+    // 全局倍率：作用在盘面产出上（道具固定收入不吃倍率，避免叠爆）
+    const gm=m.globalMul;
+    total=Math.round(total*gm);
+    total=total+extra;
+    return {total,extra,wreckN,wreckedUids,morphs,notes,live,m,gm};
+  }
+
+  /* ================= 动画 ================= */
+  let skipFlag=false, lastBoard=null;
+  function flyCoin(cell,amount){
+    if(REDUCED) return;
+    const a=cell.getBoundingClientRect(), b=el("coins").getBoundingClientRect();
+    const n=document.createElement("div");
+    n.className="coinfly"; n.textContent="+"+amount;
+    n.style.left=(a.left+a.width/2-14)+"px";
+    n.style.top=(a.top+a.height/2-10)+"px";
+    document.body.appendChild(n);
+    requestAnimationFrame(()=>{
+      n.style.transform=`translate(${b.left+b.width/2-(a.left+a.width/2)}px,${b.top+b.height/2-(a.top+a.height/2)}px) scale(.5) rotate(12deg)`;
+      n.style.opacity="0";
+    });
+    setTimeout(()=>n.remove(),780);
+  }
+  function bumpCoins(){
+    const c=el("coins"); c.classList.remove("coin-bump");
+    void c.offsetWidth; c.classList.add("coin-bump");
+  }
+
+  function setBeat(em,nm,amt,cls){
+    el("beatEm").textContent=em||"";
+    el("beatNm").textContent=nm||"";
+    el("beatAmt").textContent=amt===null||amt===undefined?"":"+"+amt;
+    const b=el("beat");
+    b.className="beat"+(cls?" "+cls:"");
+    if(amt!==null&&amt!==undefined){ void b.offsetWidth; b.classList.add("amtpop"); }
+  }
+
+  async function animatePayout(board,res){
+    const cells=gridEl.children;
+    const payers=board.filter(t=>t&&t.pay>0);
+    const startCoins=S.coins;
+    let run=0;
+    skipFlag=false;
+    gridEl.classList.add("skippable");
+
+    // 按符号归组 —— 让"哪套组合出了力"看得见，而不是一格一格乱跳
+    const groups=new Map();
+    payers.forEach(t=>{
+      const g=groups.get(t.id)||{id:t.id,tiles:[],total:0};
+      g.tiles.push(t); g.total+=t.pay; groups.set(t.id,g);
+    });
+    // 小的先来，大的压轴 —— 收尾永远是你 build 的主力
+    let list=[...groups.values()].sort((a,b)=>a.total-b.total);
+    // 组太多会拖成罚站：只给前 8 名单独亮相，零碎的并成一拍
+    if(list.length>9){
+      const rest=list.slice(0,list.length-8);
+      list=[{id:null,merged:rest.length,tiles:rest.flatMap(g=>g.tiles),
+             total:rest.reduce((n,g)=>n+g.total,0)}].concat(list.slice(-8));
+    }
+
+    el("tally").innerHTML='<span class="run">+0</span><span class="skiphint">点盘面可快进</span>';
+
+    const commit=()=>{
+      S.coins=startCoins+run;
+      el("coins").textContent=S.coins;
+      bumpCoins();
+      el("tally").innerHTML=`<span class="run">+${run}</span><span class="skiphint">点盘面可快进</span>`;
+    };
+
+    for(const g of list){
+      if(skipFlag){ run=res.total-res.extra; break; }
+      const d=g.id?SYMBOLS[g.id]:null;
+      const big=g.total>=100, mid=g.total>=40;
+      setBeat(d?d.em:"🀄", d?`${d.nm}${g.tiles.length>1?` ×${g.tiles.length}`:""}`:`其他 ${g.merged} 种`,
+              g.total, big?"big":"hot");
+
+      g.tiles.forEach((t,i)=>{
+        const cell=cells[t.pos];
+        cell.classList.add("paying");
+        cell.querySelector(".pay").classList.add("show");
+        setTimeout(()=>flyCoin(cell,t.pay), Math.min(i*46,320));
+      });
+      run+=g.total; commit();
+
+      await sleep(big?780:mid?580:440);
+      g.tiles.forEach(t=>cells[t.pos].classList.remove("paying"));
+      await sleep(90);
+    }
+
+    gridEl.classList.remove("skippable");
+    board.forEach(t=>{ if(t){ const c=cells[t.pos]; c.classList.remove("paying"); c.querySelector(".pay").classList.add("show"); } });
+
+    if(res.extra>0){
+      setBeat("🧰","道具",res.extra,"hot");
+      run+=res.extra; commit();
+      await sleep(560);
+    }
+
+    S.coins=startCoins+res.total;
+    el("coins").textContent=S.coins;
+
+    const top=[...groups.values()].sort((a,b)=>b.total-a.total).slice(0,3)
+      .map(g=>`${SYMBOLS[g.id].em}${SYMBOLS[g.id].nm} <b>+${g.total}</b>`);
+    if(res.extra>0) top.push(`道具 <b>+${res.extra}</b>`);
+    setBeat("💰","本转合计",res.total,"big");
+
+    const bits=[`<span class="breakdown">${top.join("　")}</span>`];
+    if(res.wreckN) bits.push(`摧毁 ${res.wreckN} 个`);
+    res.notes.forEach(n=>bits.push(n));
+    el("tally").innerHTML=bits.join("　·　");
+  }
+
+  function paintCell(i,t,withBounce){
+    const cell=gridEl.children[i];
+    cell.className="cell";
+    cell.style.animationDelay="";
+    cell.querySelector(".glyph").textContent=t?SYMBOLS[t.id].em:"";
+    cell.title=t?`${SYMBOLS[t.id].nm} — ${SYMBOLS[t.id].dsc}`:"";
+    const old=cell.querySelector(".pay"); if(old) old.remove();
+    if(!t) return;
+    cell.classList.add("filled","r-"+SYMBOLS[t.id].rar);
+    if(withBounce) cell.classList.add("stopped");
+    if(t.dead) cell.classList.add("wrecked");
+    const p=document.createElement("span");
+    p.className="pay"+(t.pay>0?"":" zero");
+    p.textContent=t.dead?"✕":(t.pay>0?"+"+t.pay:"0");
+    cell.appendChild(p);
+  }
+  function paint(board){ for(let i=0;i<CELLS;i++) paintCell(i,board[i],false); }
+
+  // 老虎机滚轮：每列自己转，左到右依次落定
+  const REEL_FACES=Object.values(SYMBOLS).map(x=>x.em);
+  async function reelSpin(board){
+    if(REDUCED){ paint(board); return; }
+    const cells=gridEl.children;
+    gridEl.classList.add("rolling");
+    setBeat("🎰","转动中…",null,"");
+    const timers=[];
+    for(let c=0;c<COLS;c++){
+      for(let r=0;r<ROWS;r++){
+        const cell=cells[r*COLS+c];
+        cell.className="cell filled rolling";
+        const old=cell.querySelector(".pay"); if(old) old.remove();
+      }
+      timers.push(setInterval(()=>{
+        for(let r=0;r<ROWS;r++){
+          cells[r*COLS+c].querySelector(".glyph").textContent=
+            REEL_FACES[(Math.random()*REEL_FACES.length)|0];
+        }
+      },52));
+    }
+    for(let c=0;c<COLS;c++){
+      await sleep(c===0?400:125);
+      clearInterval(timers[c]);
+      for(let r=0;r<ROWS;r++) paintCell(r*COLS+c, board[r*COLS+c], true);
+    }
+    gridEl.classList.remove("rolling");
+    await sleep(140);
+  }
+
+  /* ================= 主循环 ================= */
+  async function spin(){
+    if(S.busy||S.over) return;
+    S.busy=true; render();
+    S.spinNo++;
+
+    const board=pickBoard();
+    lastBoard=board;
+    const res=resolve(board);
+    await reelSpin(board);
+    await animatePayout(board,res);
+
+    S.spinsLeft--;
+    S.counters.pawn=0;
+    if(S.items.includes("sack")) S.counters.sack=res.wreckN*6;
+
+    if(res.wreckedUids.size) S.pool=S.pool.filter(x=>!res.wreckedUids.has(x.uid));
+    res.morphs.forEach(([uid,to])=>{const inst=S.pool.find(x=>x.uid===uid); if(inst) inst.id=to;});
+
+    render();
+    await sleep(240);
+
+    if(S.spinsLeft<=0) endPeriod();
+    else S.busy=false;
+    render();
+  }
+
+  // 一期结束：非关尾只进商店；关尾才收租
+  function endPeriod(){
+    if(!isRentPeriod()){
+      S.period++;
+      S.spinsLeft=spinsPerPeriod();
+      periodTick();
+      render();
+      openShop(null);
+      return;
+    }
+    settleRent();
+  }
+
+  function periodTick(){
+    const m=mods();
+    if(m.flags.sieve){
+      const i=S.pool.findIndex(x=>SYMBOLS[x.id].rar==="common");
+      if(i>=0){ S.pool.splice(i,1); S.coins+=25; }
+    }
+    if(m.flags.bloat){
+      const cs=Object.keys(SYMBOLS).filter(k=>SYMBOLS[k].rar==="common");
+      addSym(cs[Math.floor(Math.random()*cs.length)]);
+    }
+  }
+
+  function settleRent(){
+    const due=rentDue();
+    if(S.coins>=due){
+      S.coins-=due;
+      S.counters.rents++;
+      const clearedLevel=levelOf(S.period);
+      S.period++;
+      S.counters.sack=0;
+      S.spinsLeft=spinsPerPeriod();
+      periodTick();
+      render();
+      if(clearedLevel>=TOTAL_LEVELS && !S.endless){ victory(); return; }
+      openShop(due);
+    }else gameOver(due);
+  }
+
+  function victory(){
+    S.busy=true; render();
+    open(`
+      <h2>赎回当铺</h2>
+      <p class="hint">第 ${TOTAL_LEVELS} 关的租交清了。铺子是你的了——不过你只翻过它的一角。</p>
+      <div style="display:flex;gap:28px;flex-wrap:wrap;margin:18px 0 14px">
+        <div><div class="fam">转了</div><div class="over-num">${S.spinNo} 次</div></div>
+        <div><div class="fam">池子</div><div class="over-num">${S.pool.length} 个</div></div>
+      </div>
+      <div class="shop-sec">
+        <h3 class="section-title">这一局你没碰过的</h3>
+        <div class="chips">
+          <span class="chip">道具　<b style="color:var(--brass)">${S.items.length}/${Object.keys(ITEMS).length}</b>　还有 ${Object.keys(ITEMS).length-S.items.length} 件没见过</span>
+          <span class="chip">联动　<b style="color:var(--brass)">${activeCombos().length}/${COMBOS.length}</b>　组成套</span>
+          <span class="chip">符号　<b style="color:var(--brass)">${new Set(S.pool.map(x=>x.id)).size}/${Object.keys(SYMBOLS).length}</b>　种上过场</span>
+        </div>
+      </div>
+      <div class="sheet-foot">
+        <button id="endless">接着开，无尽模式</button>
+        <button id="againWin">再来一局</button>
+      </div>`);
+    el("endless").onclick=()=>{ S.endless=true; close(); openShop(0); };
+    el("againWin").onclick=()=>{ close(); init(); };
+  }
+
+  function gameOver(due){
+    S.over=true; S.busy=true; render();
+    open(`
+      <h2>关门</h2>
+      <p class="hint">第 ${levelOf(S.period)} 关的租交不上，差 ${due-S.coins} 个铜钱。</p>
+      <div style="display:flex;gap:28px;flex-wrap:wrap;margin:18px 0 22px">
+        <div><div class="fam">撑过</div><div class="over-num">${levelOf(S.period)-1} 关</div></div>
+        <div><div class="fam">转了</div><div class="over-num">${S.spinNo} 次</div></div>
+        <div><div class="fam">池子</div><div class="over-num">${S.pool.length} 个</div></div>
+        <div><div class="fam">道具</div><div class="over-num">${S.items.length} 件</div></div>
+      </div>
+      <div class="sheet-foot"><button id="again">再来一局</button></div>`);
+    el("again").onclick=()=>{close();init();};
+  }
+
+  /* ================= 开局三选一 ================= */
+  // 完全随机，但要求内部自洽：先抽两个"少见"当种子，再用跟它们有关系的常见去填。
+  // 纯随机会抽出七个互不相干的东西 —— 那不是流派，是噪音。
+  function genLoadout(){
+    const byRar=r=>Object.keys(SYMBOLS).filter(id=>SYMBOLS[id].rar===r&&!SYMBOLS[id].unique);
+    const unc=byRar("uncommon"), com=byRar("common");
+    const seeds=[];
+    const pool1=unc.slice();
+    for(let i=0;i<3&&pool1.length;i++){
+      const pick=pool1.splice(Math.floor(Math.random()*pool1.length),1)[0];
+      seeds.push(pick);
+    }
+    const score=id=>{
+      const d=SYMBOLS[id]; let r=0.6;                       // 底噪，保证不完全锁死
+      seeds.forEach(sd=>{
+        if((PARTNER[sd]||[]).includes(id)||(PARTNER[id]||[]).includes(sd)) r+=3;
+        if(SYMBOLS[sd].tags.some(t=>d.tags.includes(t))) r+=2;
+      });
+      return r;
+    };
+    const commons=[], bag=com.slice();
+    for(let i=0;i<9&&bag.length;i++){
+      const tot=bag.reduce((a,x)=>a+score(x),0);
+      let r=Math.random()*tot, hit=0;
+      for(let j=0;j<bag.length;j++){ r-=score(bag[j]); if(r<=0){hit=j;break;} }
+      commons.push(bag.splice(hit,1)[0]);
+    }
+    const all=[...commons,...seeds];
+    // 起名按"相对突出度"，不按绝对数量 ——
+    // 器物是全表最常见的标签，按数量取名会让每一副都叫器物局。
+    const cnt={}, base={};
+    all.forEach(id=>SYMBOLS[id].tags.forEach(t=>cnt[t]=(cnt[t]||0)+1));
+    Object.keys(SYMBOLS).forEach(id=>SYMBOLS[id].tags.forEach(t=>base[t]=(base[t]||0)+1));
+    const total=Object.keys(SYMBOLS).length;
+    let best=null,bs=0;
+    Object.keys(cnt).forEach(t=>{
+      const lift=(cnt[t]/all.length)/((base[t]||1)/total);
+      const sc=lift*Math.sqrt(cnt[t]);          // 又突出又有量的才算
+      if(sc>bs){bs=sc;best=t;}
+    });
+    const NAME={水果:"果园局",动物:"畜栏局",器物:"杂货局",植物:"苗圃局",食物:"灶间局",赌具:"赌坊局"};
+    return {syms:all, name:NAME[best]||"杂局"};
+  }
+
+  function openingDraft(){
+    S.busy=true;
+    const picks=[genLoadout(),genLoadout(),genLoadout()];
+    const card=(lo,i)=>{
+      const cnt={};
+      lo.syms.forEach(id=>cnt[id]=(cnt[id]||0)+1);
+      const line=Object.keys(cnt).map(id=>{
+        const d=SYMBOLS[id];
+        return `<span class="chip" title="${d.nm} — ${d.dsc}">${d.em} ${d.nm}${cnt[id]>1?` ×${cnt[id]}`:""}</span>`;
+      }).join("");
+      return `<button class="offer" data-lo="${i}">
+        <span class="top"><span class="nm">${lo.name}</span>
+        <span class="tagline r-uncommon">12 个符号</span></span>
+        <span class="chips" style="margin-top:4px">${line}</span></button>`;
+    };
+    open(`
+      <h2>开张，先挑一副家当</h2>
+      <p class="hint">三副随机的起手，各有各的路子。挑定之后这一局就从它长出来——挑什么都能玩，但会长成不一样的东西。</p>
+      <div class="offers" style="grid-template-columns:1fr">${picks.map(card).join("")}</div>`);
+    sheet.querySelectorAll("[data-lo]").forEach(b=>b.onclick=()=>{
+      picks[+b.dataset.lo].syms.forEach(id=>addSym(id));
+      close(); S.busy=false; render();
+      setBeat("","拉下右边的杆子开张",null,"");
+    });
+  }
+
+  /* ================= 三选一 ================= */
+  function symCard(id,priced){
+    const s=SYMBOLS[id];
+    const price=priced?symPrice(id):null;
+    const afford=price===null||S.coins>=price;
+    return `<button class="offer" data-sym="${id}" ${afford?"":"disabled"}>
+      <span class="top"><span class="em">${s.em}</span><span class="nm">${s.nm}</span>
+      <span class="tagline r-${s.rar}">${RAR_NM[s.rar]}</span></span>
+      <span class="meta">底值 ${s.base}${price!==null?`　·　${price} 钱`:""}</span>
+      <span class="dsc">${s.dsc}</span></button>`;
+  }
+
+  /* ================= 商店 ================= */
+  let shopStock=null;
+  // 期数越深，越容易翻到好东西 —— 后期商店必须跟得上租金
+  function symWeight(rar){
+    const p=S.period;
+    return {common:100, uncommon:42+3*p, rare:14+3*p, legend:4+1.5*p}[rar];
+  }
+  function itemWeight(tier){
+    const p=S.period;
+    return tier===2 ? 20+9*p : 100;
+  }
+  function weightedPick(pool,wfn,n){
+    const bag=pool.slice(), out=[];
+    while(out.length<n && bag.length){
+      const tot=bag.reduce((s,x)=>s+wfn(x),0);
+      let r=Math.random()*tot, hit=0;
+      for(let i=0;i<bag.length;i++){ r-=wfn(bag[i]); if(r<=0){hit=i;break;} }
+      out.push(bag.splice(hit,1)[0]);
+    }
+    return out;
+  }
+
+  function rollShop(){
+    const m=mods(), lv=levelOf(S.period), u=unlocked(lv), k=biasK();
+    const owned=new Set(S.items);
+    const have=new Set(S.pool.map(x=>x.id));
+    const itemPool=Object.keys(ITEMS).filter(id=>!owned.has(id)
+        && (u.tier2||ITEMS[id].tier===1));
+    const symPool=Object.keys(SYMBOLS).filter(id=>u.rarities.includes(SYMBOLS[id].rar)
+        && !(SYMBOLS[id].unique&&have.has(id)));
+
+    const nSym=Math.max(4,m.offers+1);
+    // 保底一个纯随机位：转向的可能性必须一直在桌上
+    const wild=weightedPick(symPool,id=>symWeight(SYMBOLS[id].rar),1);
+    const rest=weightedPick(symPool.filter(id=>id!==wild[0]),
+                 id=>symWeight(SYMBOLS[id].rar)*(1+k*symRelevance(id)), nSym-1);
+    let syms=[...rest,...wild];
+    if(m.guarantee){
+      const want=["rare","legend"];
+      if(!syms.some(id=>want.includes(SYMBOLS[id].rar))){
+        const good=symPool.filter(id=>want.includes(SYMBOLS[id].rar));
+        if(good.length) syms[0]=good[Math.floor(Math.random()*good.length)];
+      }
+    }
+    const items=u.items
+      ? weightedPick(itemPool,id=>itemWeight(ITEMS[id].tier)*(1+k*itemRelevance(id)),3)
+      : [];
+    return {syms, items};
+  }
+
+  function openShop(paid){
+    if(!shopStock) shopStock=rollShop();
+    drawShop(paid);
+  }
+
+  function removalPrice(){ return Math.max(10, Math.round(priceRef()*0.25*markup())); }
+  function rerollPrice(){ return Math.max(8, Math.round(priceRef()*0.15*Math.pow(1.7,S.rerolls))); }
+
+  function drawShop(paid){
+    const itemCards=shopStock.items.map(id=>{
+      const it=ITEMS[id],price=itemPrice(id),full=S.items.length>=ITEM_CAP,afford=S.coins>=price&&!full;
+      return `<button class="offer" data-item="${id}" ${afford?"":"disabled"}>
+        <span class="top"><span class="em">${it.em}</span><span class="nm">${it.nm}</span>
+        <span class="tagline r-${it.tier===2?"rare":"uncommon"}">${it.fam}</span></span>
+        <span class="meta">${price} 钱${full?"　·　道具位已满":""}</span>
+        <span class="dsc">${it.dsc}</span></button>`;
+    }).join("");
+
+    const ups=S.items.filter(id=>ITEMS[id].up&&!S.items.includes(ITEMS[id].up));
+    const upCards=ups.map(id=>{
+      const from=ITEMS[id],to=ITEMS[from.up];
+      const cost=Math.max(30,itemPrice(from.up)-Math.round(itemPrice(id)*0.6));
+      const afford=S.coins>=cost;
+      return `<button class="offer" data-up="${id}" data-cost="${cost}" ${afford?"":"disabled"}>
+        <span class="top"><span class="em">${to.em}</span><span class="nm">${to.nm}</span>
+        <span class="tagline r-rare">换 ${from.nm}</span></span>
+        <span class="meta">${cost} 钱　·　熔掉 ${from.em}${from.nm}</span>
+        <span class="dsc">${to.dsc}</span></button>`;
+    }).join("");
+
+    open(`
+      <span class="purse">铜钱 ${S.coins}</span>
+      <h2>${paid===null?`第 ${levelOf(S.period)} 关 · 第 ${periodInLevel()}/${periodsInLevel(levelOf(S.period))} 期`:`租交了 ${paid}`}</h2>
+      <p class="hint">${periodsToRent()>0?`还有 <b style="color:var(--cinnabar)">${periodsToRent()}</b> 期就要交本关的 ${rentDue()} 租金。`:"下一期就是交租期。"}符号和道具都得花钱买。期数越深，好货出现得越勤。</p>
+
+      <div class="shop-sec">
+        <h3 class="section-title">道具 · ${S.items.length}/${ITEM_CAP} 位</h3>
+        <div class="offers">${itemCards||`<span class="empty-note">${unlocked(levelOf(S.period)).items?"道具收全了。":"第 2 关起，铺子才开始卖道具。"}</span>`}</div>
+      </div>
+
+      ${ups.length?`<div class="shop-sec">
+        <h3 class="section-title">以旧换新</h3>
+        <div class="offers">${upCards}</div>
+      </div>`:""}
+
+      <div class="shop-sec">
+        <h3 class="section-title">符号 <span style="font-size:12px;color:var(--brass-dim)">池子 ${S.pool.length}</span>　<button id="reroll" class="mini" ${S.coins>=rerollPrice()?"":"disabled"}>刷新 · ${rerollPrice()} 钱</button>${S.rerolls?`<span style="margin-left:10px;font-size:12px;color:var(--seal,#AE3226)">已刷 ${S.rerolls} 次 · 全店 ×${markup().toFixed(2)}${S.endless?"（无尽模式：不会清零）":""}</span>`:""}</h3>
+        <div class="offers">${shopStock.syms.map(id=>symCard(id,true)).join("")}</div>
+      </div>
+
+      <div class="sheet-foot">
+        <button id="buyRm" ${(S.coins>=removalPrice()&&S.removalsBought<1)?"":"disabled"}>${S.removalsBought>=1?"整理已售罄（每次进店限一次）":`买 1 次整理 · ${removalPrice()} 钱`}</button>
+        <button id="leave">离开，开转</button>
+      </div>`);
+
+    sheet.querySelectorAll("[data-item]").forEach(b=>b.onclick=()=>{
+      const id=b.dataset.item,it=ITEMS[id],price=itemPrice(id);
+      if(S.coins<price||S.items.length>=ITEM_CAP) return;
+      S.coins-=price; S.items.push(id);
+      if(it.onBuy) it.onBuy(S);
+      shopStock.items=shopStock.items.filter(x=>x!==id);
+      S.spinsLeft=spinsPerPeriod();
+      render(); drawShop(paid);
+    });
+    sheet.querySelectorAll("[data-up]").forEach(b=>b.onclick=()=>{
+      const from=b.dataset.up,cost=+b.dataset.cost;
+      if(S.coins<cost) return;
+      S.coins-=cost;
+      S.items=S.items.filter(x=>x!==from);
+      S.items.push(ITEMS[from].up);
+      const to=ITEMS[ITEMS[from].up];
+      if(to.onBuy) to.onBuy(S);
+      S.spinsLeft=spinsPerPeriod();
+      render(); drawShop(paid);
+    });
+    sheet.querySelectorAll("[data-sym]").forEach(b=>b.onclick=()=>{
+      const id=b.dataset.sym,price=symPrice(id);
+      if(S.coins<price) return;
+      S.coins-=price; addSym(id);
+      shopStock.syms=shopStock.syms.filter(x=>x!==id);
+      render(); drawShop(paid);
+    });
+    el("buyRm").onclick=()=>{
+      if(S.coins<removalPrice()||S.removalsBought>=1) return;
+      S.coins-=removalPrice(); S.removalsBought++; S.tokens++;
+      render(); drawShop(paid);
+    };
+    el("reroll").onclick=()=>{
+      const c=rerollPrice();
+      if(S.coins<c) return;
+      S.coins-=c; S.rerolls++; shopStock=rollShop(); render(); drawShop(paid);
+    };
+    el("leave").onclick=()=>{ shopStock=null; S.removalsBought=0; if(!S.endless) S.rerolls=0; close(); S.busy=false; render(); };
+  }
+
+  /* ================= 池子 / 道具册 ================= */
+  function showPool(){
+    const cnt={};
+    S.pool.forEach(x=>{cnt[x.id]=(cnt[x.id]||0)+1;});
+    const rows=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]).map(id=>{
+      const s=SYMBOLS[id],can=S.tokens>0;
+      return `<span class="chip ${can?"pick":""}" ${can?`data-rm="${id}"`:""} title="${s.nm} — ${s.dsc}">
+        ${s.em} ${s.nm} <span class="n">×${cnt[id]}</span></span>`;
+    }).join("");
+    open(`
+      <h2>符号池</h2>
+      <p class="hint">共 ${S.pool.length} 个，每转随机上场 ${Math.min(CELLS,S.pool.length)} 个。
+      ${S.tokens>0?`还有 <b style="color:var(--cinnabar)">${S.tokens}</b> 次整理，点一个扔掉。`:"没有整理次数了，商店可以买。"}</p>
+      <div class="chips">${rows}</div>
+      <div class="sheet-foot"><button id="closePool">合上</button></div>`);
+    sheet.querySelectorAll("[data-rm]").forEach(c=>c.onclick=()=>{
+      if(S.tokens<=0) return;
+      const i=S.pool.findIndex(x=>x.id===c.dataset.rm);
+      if(i<0) return;
+      S.pool.splice(i,1); S.tokens--;
+      const m=mods();
+      if(m.perRemove) S.coins+=m.perRemove;
+      if(S.items.includes("pawn")) S.counters.pawn+=90;
+      render(); showPool();
+    });
+    el("closePool").onclick=close;
+  }
+
+  function showItems(){
+    const fams={};
+    S.items.forEach(id=>{const f=ITEMS[id].fam;(fams[f]=fams[f]||[]).push(id);});
+    const body=Object.keys(fams).map(f=>`
+      <div class="shop-sec"><h3 class="section-title">${f} · ${fams[f].length} 件</h3>
+      <div class="offers">${fams[f].map(id=>{
+        const it=ITEMS[id];
+        return `<button class="offer" data-drop="${id}">
+          <span class="top"><span class="em">${it.em}</span><span class="nm">${it.nm}</span>
+          <span class="tagline r-common">舍弃 +${Math.round(ITEMS[id].price*0.5)}</span></span>
+          <span class="dsc">${it.dsc}</span></button>`;
+      }).join("")}</div></div>`).join("");
+    open(`
+      <h2>道具册</h2>
+      ${(()=>{const ac=activeCombos();return ac.length?`<div class="shop-sec"><h3 class="section-title">已成套的联动 · ${ac.length}</h3><div class="chips">${ac.map(c=>`<span class="chip" style="border-color:var(--jade)">✦ ${c.nm} — ${c.dsc}</span>`).join("")}</div></div>`:"";})()}
+      <p class="hint">${S.items.length}/${ITEM_CAP} 位（全部 ${Object.keys(ITEMS).length} 件可收集）。点一件可舍弃换半价。同族集齐 3 件，「配套」会给你算钱。</p>
+      ${body||'<span class="empty-note">还没有道具。</span>'}
+      <div class="sheet-foot"><button id="closeItems">合上</button></div>`);
+    let armed=null;
+    sheet.querySelectorAll("[data-drop]").forEach(b=>b.onclick=()=>{
+      const id=b.dataset.drop;
+      if(armed!==id){                       // 第一下只做武装，防误触
+        armed=id;
+        sheet.querySelectorAll("[data-drop] .tagline").forEach(t=>{
+          t.textContent="舍弃 +"+Math.round(ITEMS[t.closest("[data-drop]").dataset.drop].price*0.5);
+          t.style.color="";
+        });
+        const tag=b.querySelector(".tagline");
+        tag.textContent="再点一次确认"; tag.style.color="var(--cinnabar)";
+        return;
+      }
+      S.items=S.items.filter(x=>x!==id);
+      S.coins+=Math.round(ITEMS[id].price*0.5);
+      render(); showItems();
+    });
+    el("closeItems").onclick=close;
+  }
+
+  /* ================= 渲染 ================= */
+  function render(){
+    el("coins").textContent=S.coins;
+    el("rent").textContent=rentDue();
+    el("spins").textContent=S.spinsLeft;
+    el("period").textContent=S.period;
+    el("level").textContent=Math.min(levelOf(S.period),TOTAL_LEVELS);
+    el("toRent").textContent=periodsToRent();
+    const nb=el("notches");
+    if(nb){
+      const cur=Math.min(levelOf(S.period),TOTAL_LEVELS);
+      nb.innerHTML=Array.from({length:TOTAL_LEVELS},(_,i)=>{
+        const n=i+1;
+        return `<i class="${n<cur?"done":n===cur?"now":""}"></i>`;
+      }).join("");
+    }
+    el("poolCount").textContent=S.pool.length;
+    el("tokens").textContent=S.tokens;
+    el("gmul").textContent="×"+mods().globalMul.toFixed(2);
+    el("itemCount").textContent=S.items.length?`${S.items.length}/${Object.keys(ITEMS).length}`:"";
+
+    const due=rentDue();
+    const pct=Math.max(0,Math.min(100,S.coins/due*100));
+    el("meter").style.width=pct+"%";
+    el("meterBox").classList.toggle("short",pct<100);
+
+    const box=el("items");
+    box.innerHTML=S.items.length
+      ? S.items.map(id=>{const it=ITEMS[id];
+          return `<span class="chip info" data-item="${id}" tabindex="0">${it.em} ${it.nm}</span>`;}).join("")
+      : '<span class="empty-note">还没有。交上租，铺子才开门。</span>';
+
+    const lv=el("lever");
+    if(lv) lv.classList.toggle("disabled",S.over||S.busy);
+    const tip=el("spinTip");
+    if(tip) tip.textContent=S.over?"已关门":(S.busy?"转动中…":"拉下右边的杆子（或按空格）");
+    el("openPool").disabled=S.busy;
+    el("openItems").disabled=S.busy;
+  }
+
+  /* ---------- 点一下看效果 ---------- */
+  let popEl=null;
+  function hideInfo(){ if(popEl) popEl.hidden=true; }
+  function showInfo(anchor,html){
+    if(!popEl){
+      popEl=document.createElement("div");
+      popEl.className="pop"; popEl.hidden=true;
+      document.body.appendChild(popEl);
+      popEl.addEventListener("click",e=>e.stopPropagation());
+    }
+    popEl.innerHTML=html; popEl.hidden=false;
+    const r=anchor.getBoundingClientRect(), pr=popEl.getBoundingClientRect();
+    let left=r.left+r.width/2-pr.width/2;
+    let top=r.top-pr.height-9;
+    if(top<8) top=r.bottom+9;                                  // 上面放不下就翻到下面
+    left=Math.max(8,Math.min(left,innerWidth-pr.width-8));     // 左右夹住不出屏
+    popEl.style.left=left+"px"; popEl.style.top=top+"px";
+  }
+  function itemInfo(id){
+    const it=ITEMS[id];
+    const combos=activeCombos().filter(c=>c.need.includes(id));
+    const pend=COMBOS.filter(c=>c.need.includes(id)&&!c.need.every(x=>S.items.includes(x)));
+    let extra="";
+    if(combos.length) extra+=`<div class="pop-line">✦ 已成套　${combos.map(c=>`${c.nm} — ${c.dsc}`).join("；")}</div>`;
+    if(pend.length){
+      const miss=pend.map(c=>{
+        const need=c.need.filter(x=>!S.items.includes(x)).map(x=>ITEMS[x].em+ITEMS[x].nm).join("、");
+        return `${c.nm}（还差 ${need}）`;
+      }).join("；");
+      extra+=`<div class="pop-line" style="color:var(--bone-dim)">◇ 可成套　${miss}</div>`;
+    }
+    return `<div class="pop-head"><span class="pop-em">${it.em}</span>
+      <span class="pop-nm">${it.nm}</span>
+      <span class="pop-tag ${it.tier===2?"r-rare":"r-uncommon"}">${it.fam}${it.tier===2?" · 高档":""}</span></div>
+      <div class="pop-dsc">${it.dsc}</div>${extra}`;
+  }
+  function symInfo(t){
+    const d=SYMBOLS[t.id];
+    const g=S.growth[t.uid]||0;
+    let extra="";
+    if(t.id==="moon") extra=`<div class="pop-line">这一个已上场 <b>${g}</b> 次，当前倍率 <b>×${Math.pow(1.07,g).toFixed(2)}</b></div>`;
+    if(t.id==="hole") extra=`<div class="pop-line">这一个已吞 <b>${g}</b> 个，当前倍率 <b>×${Math.pow(1.15,g).toFixed(2)}</b></div>`;
+    if(t.id==="seed") extra=`<div class="pop-line">已积累 <b>${g}</b> 次，满 ${mods().flags.seedFast?2:3} 次长成树</div>`;
+    if(t.pay>0) extra+=`<div class="pop-line">本转产出 <b>+${t.pay}</b></div>`;
+    return `<div class="pop-head"><span class="pop-em">${d.em}</span>
+      <span class="pop-nm">${d.nm}</span>
+      <span class="pop-tag r-${d.rar}">${RAR_NM[d.rar]}</span></div>
+      <div class="pop-dsc">底值 ${d.base}　·　${d.dsc}</div>${extra}`;
+  }
+
+  function open(html){ sheet.innerHTML=html; veil.hidden=false; }
+  function close(){ veil.hidden=true; }
+
+  function buildGrid(){
+    gridEl.innerHTML="";
+    gridEl.style.setProperty("--cols",COLS);
+    for(let i=0;i<CELLS;i++){
+      const d=document.createElement("div");
+      d.className="cell";
+      d.innerHTML='<span class="glyph"></span>';
+      gridEl.appendChild(d);
+    }
+  }
+
+  function init(){
+    S.pool=[];S.growth={};S.items=[];S.coins=0;S.period=1;S.spinNo=0;S.tokens=1;
+    S.counters={sack:0,pawn:0,rents:0};S.over=false;S.busy=false;S.removalsBought=0;S.rerolls=0;S.endless=false;
+    uidSeq=0;shopStock=null;
+    S.coins=OPENING_STAKE;
+    S.spinsLeft=spinsPerPeriod();
+    buildGrid(); render();
+    openingDraft();
+    el("tally").textContent="";
+    setBeat("","拉一次，看看今晚的手气",null,"");
+  }
+
+  /* ---------- 拉杆 ---------- */
+  const lever=el("lever"), arm=el("leverArm");
+  let pulling=false, pullY=0, fired=false;
+  const maxPull=()=>Math.max(40,lever.clientHeight-92);
+  const setPull=y=>{ pullY=y; arm.style.setProperty("--pull",y+"px");
+                     lever.classList.toggle("pulled",y>maxPull()*0.35); };
+
+  function releaseLever(trigger){
+    arm.classList.remove("dragging");
+    lever.classList.remove("grabbing");
+    setPull(0);
+    if(trigger && !S.busy && !S.over) spin();
+  }
+  function pullAndSpin(){          // 点击/键盘：自动拉到底再弹回
+    if(S.busy||S.over) return;
+    arm.classList.remove("dragging");
+    setPull(maxPull());
+    setTimeout(()=>releaseLever(true),170);
+  }
+
+  lever.addEventListener("pointerdown",e=>{
+    if(S.busy||S.over) return;
+    pulling=true; fired=false;
+    lever.setPointerCapture(e.pointerId);
+    arm.classList.add("dragging"); lever.classList.add("grabbing");
+    lever.dataset.startY=e.clientY;
+  });
+  lever.addEventListener("pointermove",e=>{
+    if(!pulling) return;
+    const dy=Math.max(0,Math.min(maxPull(),e.clientY-(+lever.dataset.startY)));
+    setPull(dy);
+    if(dy>=maxPull()*0.85 && !fired){ fired=true; }   // 拉到底即认定
+  });
+  lever.addEventListener("pointerup",e=>{
+    if(!pulling) return;
+    pulling=false;
+    try{ lever.releasePointerCapture(e.pointerId); }catch(_){}
+    const wasDrag=pullY>6;
+    if(!wasDrag) pullAndSpin();                       // 只是点了一下
+    else releaseLever(pullY>=maxPull()*0.5);          // 拉过半才算数
+  });
+  lever.addEventListener("pointercancel",()=>{ pulling=false; releaseLever(false); });
+  lever.addEventListener("keydown",e=>{
+    if(e.code==="Enter"||e.code==="Space"){ e.preventDefault(); pullAndSpin(); }
+  });
+
+  el("openPool").onclick=showPool;
+  el("openItems").onclick=showItems;
+
+  // 侧栏道具：点一下弹效果（含成套/差几件）
+  el("items").addEventListener("click",e=>{
+    const c=e.target.closest("[data-item]");
+    if(!c) return;
+    e.stopPropagation();
+    showInfo(c,itemInfo(c.dataset.item));
+  });
+  el("items").addEventListener("keydown",e=>{
+    if(e.code!=="Enter"&&e.code!=="Space") return;
+    const c=e.target.closest("[data-item]"); if(!c) return;
+    e.preventDefault(); showInfo(c,itemInfo(c.dataset.item));
+  });
+  document.addEventListener("click",hideInfo);
+  window.addEventListener("resize",hideInfo);
+  gridEl.onclick=e=>{
+    if(S.busy){ skipFlag=true; return; }
+    const cell=e.target.closest(".cell"); if(!cell||!lastBoard) return;
+    const i=[...gridEl.children].indexOf(cell);
+    const t=lastBoard[i]; if(!t) return;
+    e.stopPropagation();
+    showInfo(cell,symInfo(t));
+  };
+  document.addEventListener("keydown",e=>{
+    if(e.code==="Space"&&veil.hidden&&e.target!==lever){ e.preventDefault(); if(S.busy) skipFlag=true; else pullAndSpin(); }
+  });
+
+  init();
+})();
+</script>
+</body>
+</html>
