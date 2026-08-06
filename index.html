@@ -545,6 +545,7 @@
       <div class="lever">
         <button id="openPool">符号池</button>
         <button id="openItems">道具册</button>
+        <button id="fx" title="关掉之后滚轮和结算瞬间完成">特效：开</button>
         <span class="lever-tip" id="spinTip">拉下右边的杆子（或按空格）</span>
       </div>
     </section>
@@ -924,17 +925,17 @@
   function markup(){ return Math.pow(SHOP_MARKUP, S.rerolls); }
     // 符号底价全程恒定：唯一会让它变贵的是本次进店刷新过几次，离店即清。
   const SYM_PRICE={common:20,uncommon:45,rare:95,legend:170};
+  // 分期涨幅：随期数温和上浮，防止后期把钱一次性砸成一池子符号。
+  // 进店刷新会在此基础上临时加价，离店回落到下一期的新基准。
+  const PERIOD_STEP=1.10, REROLL_BASE=25;
+  function periodScale(){ return Math.pow(PERIOD_STEP, S.period-1); }
   // 无尽模式：底价逐关上浮，且刷新造成的涨价会「继承」——
   // 你这一局刷过的每一次，都永久留在价格上。想捞好货，代价是往后一直更贵。
-  const ENDLESS_PRICE_STEP=1.25;
-  function endlessScale(){
-    const lv=levelOf(S.period);
-    return lv<=TOTAL_LEVELS?1:Math.pow(ENDLESS_PRICE_STEP,lv-TOTAL_LEVELS);
-  }
+
   // 符号价随池子大小上涨：不设限购，但囤得越多，下一个越贵。
   // 否则"便宜的符号 + 开局本钱"= 第一次进店就把盘面灌满，整局的成长曲线当场走完。
 
-  function symPrice(id){ return Math.round(SYM_PRICE[SYMBOLS[id].rar]*markup()*endlessScale()); }
+  function symPrice(id){ return Math.round(SYM_PRICE[SYMBOLS[id].rar]*periodScale()*markup()); }
   function itemPrice(id){
     // 不再随持有数涨价：道具位只有 12 个，那已经是硬约束，再加价是双重惩罚。
     const base=ITEMS[id].tier===2?0.62:0.34;
@@ -1069,7 +1070,7 @@
   }
 
   /* ================= 动画 ================= */
-  let skipFlag=false, lastBoard=null;
+  let skipFlag=false, lastBoard=null, fastMode=false;
   function flyCoin(cell,amount){
     if(REDUCED) return;
     const a=cell.getBoundingClientRect(), b=el("coins").getBoundingClientRect();
@@ -1100,6 +1101,18 @@
 
   async function animatePayout(board,res){
     const cells=gridEl.children;
+    if(fastMode){                                  // 瞬发：直接落账，只留一行结果
+      board.forEach(t=>{ if(t) cells[t.pos].querySelector(".pay").classList.add("show"); });
+      S.coins+=res.total;
+      el("coins").textContent=S.coins; bumpCoins();
+      const top=[...new Map(board.filter(t=>t&&t.pay>0).map(t=>[t.id,0])).keys()];
+      setBeat("💰","本转合计",res.total,"big");
+      const bits=[`<span class="breakdown">${top.slice(0,3).map(id=>SYMBOLS[id].em+SYMBOLS[id].nm).join("　")}</span>`];
+      if(res.wreckN) bits.push(`摧毁 ${res.wreckN} 个`);
+      res.notes.forEach(n=>bits.push(n));
+      el("tally").innerHTML=bits.join("　·　");
+      return;
+    }
     const payers=board.filter(t=>t&&t.pay>0);
     const startCoins=S.coins;
     let run=0;
@@ -1194,7 +1207,7 @@
   // 老虎机滚轮：每列自己转，左到右依次落定
   const REEL_FACES=Object.values(SYMBOLS).map(x=>x.em);
   async function reelSpin(board){
-    if(REDUCED){ paint(board); return; }
+    if(REDUCED||fastMode){ paint(board); return; }
     const cells=gridEl.children;
     gridEl.classList.add("rolling");
     setBeat("🎰","转动中…",null,"");
@@ -1467,7 +1480,7 @@
   }
 
   function removalPrice(){ return Math.max(10, Math.round(priceRef()*0.25*markup())); }
-  function rerollPrice(){ return Math.max(8, Math.round(priceRef()*0.15*Math.pow(1.7,S.rerolls))); }
+  function rerollPrice(){ return Math.round(REROLL_BASE*periodScale()*Math.pow(1.7,S.rerolls)); }
 
   function drawShop(paid){
     const itemCards=shopStock.items.map(id=>{
@@ -1786,6 +1799,11 @@
 
   el("openPool").onclick=showPool;
   el("openItems").onclick=showItems;
+  el("fx").onclick=()=>{
+    fastMode=!fastMode;
+    el("fx").textContent="特效："+(fastMode?"关":"开");
+    el("fx").style.borderColor=fastMode?"var(--seal,#AE3226)":"";
+  };
 
   // 侧栏道具：点一下弹效果（含成套/差几件）
   el("items").addEventListener("click",e=>{
