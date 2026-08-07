@@ -1678,6 +1678,36 @@
     el("benchLeave").onclick=()=>{ benchPick=null; back(); };
   }
 
+  // 道具位满了买新的：不置灰、不赶人走，就地问你换掉哪一件
+  function askSwap(newId,price,back){
+    const it=ITEMS[newId];
+    const rows=S.items.map(id=>{
+      const o=ITEMS[id], refund=Math.round(o.price*0.5);
+      return `<button class="offer" data-swap="${id}">
+        <span class="top"><span class="em">${o.em}</span><span class="nm">${o.nm}</span>
+        <span class="tagline r-common">退 +${refund}</span></span>
+        <span class="dsc">${o.dsc}</span></button>`;
+    }).join("");
+    open(`
+      <span class="purse">铜钱 ${S.coins}</span>
+      <h2>换掉哪一件？</h2>
+      <p class="hint">道具位满了（${ITEM_CAP} 件）。要收下
+        <b style="color:var(--brass)">${it.em} ${it.nm}</b>（${price} 钱），
+        得先让出一个位子——舍掉的那件退你半价。</p>
+      <div class="offers">${rows}</div>
+      <div class="sheet-foot"><button id="swapCancel">算了，不买</button></div>`);
+    sheet.querySelectorAll("[data-swap]").forEach(b=>b.onclick=()=>{
+      const old=b.dataset.swap;
+      S.items=S.items.filter(x=>x!==old);
+      S.coins+=Math.round(ITEMS[old].price*0.5);
+      S.coins-=price; S.items.push(newId);
+      if(it.onBuy) it.onBuy(S);
+      S.spinsLeft=spinsPerPeriod();
+      render(); back();
+    });
+    el("swapCancel").onclick=back;
+  }
+
   /* ================= 商店 ================= */
   let shopStock=null;
   // 期数越深，越容易翻到好东西 —— 后期商店必须跟得上租金
@@ -1738,11 +1768,11 @@
 
   function drawShop(paid){
     const itemCards=shopStock.items.map(id=>{
-      const it=ITEMS[id],price=itemPrice(id),full=S.items.length>=ITEM_CAP,afford=S.coins>=price&&!full;
+      const it=ITEMS[id],price=itemPrice(id),full=S.items.length>=ITEM_CAP,afford=S.coins>=price;
       return `<button class="offer" data-item="${id}" ${afford?"":"disabled"}>
         <span class="top"><span class="em">${it.em}</span><span class="nm">${it.nm}</span>
         <span class="tagline r-${it.tier===2?"rare":"uncommon"}">${it.fam}</span></span>
-        <span class="meta">${price} 钱${full?"　·　道具位已满":""}</span>
+        <span class="meta">${price} 钱${full?"　·　需先腾位子":""}</span>
         <span class="dsc">${it.dsc}</span></button>`;
     }).join("");
 
@@ -1837,7 +1867,8 @@
 
     sheet.querySelectorAll("[data-item]").forEach(b=>b.onclick=()=>{
       const id=b.dataset.item,it=ITEMS[id],price=itemPrice(id);
-      if(S.coins<price||S.items.length>=ITEM_CAP) return;
+      if(S.coins<price) return;
+      if(S.items.length>=ITEM_CAP){ askSwap(id,price,()=>drawShop(paid)); return; }
       S.coins-=price; S.items.push(id);
       if(it.onBuy) it.onBuy(S);
       shopStock.items=shopStock.items.filter(x=>x!==id);
