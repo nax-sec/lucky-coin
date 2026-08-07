@@ -667,17 +667,17 @@
       }},
     chest:{nm:"宝箱",em:"🧰",base:1,rar:"uncommon",tags:["器物"],dsc:"锁着。要钥匙。"},
 
-    moon:{nm:"月亮",em:"🌙",base:4,rar:"rare",tags:[],dsc:"每出现一次，自身倍率永久 ×1.07（复利）。",
-      phase:"mult",fx:c=>{
+    moon:{nm:"月亮",em:"🌙",base:4,rar:"rare",tags:[],dsc:"每出现一次层数 +1，每层产出 +3。交租后层数减半。",
+      phase:"value",fx:c=>{
         const n=(c.grow(c.t.uid)||0);
-        c.mult(c.t, Math.pow(c.flag("moonFast")?1.12:1.07, n));
+        c.add(c.t, (c.flag("moonFast")?6:3)*n);
         c.setGrow(c.t.uid,n+1);
       }},
     gold:{nm:"金元宝",em:"💰",base:12,rar:"rare",tags:["器物"],dsc:"沉甸甸，不需要伙伴。"},
-    hole:{nm:"黑洞",em:"🕳️",base:6,rar:"rare",tags:[],dsc:"吞噬最多 2 个相邻符号，每吞 1 个自身倍率永久 ×1.15。",
+    hole:{nm:"黑洞",em:"🕳️",base:6,rar:"rare",tags:[],dsc:"吞噬最多 2 个相邻符号；每吞 1 个层数 +1，每层产出 +8。交租后层数减半。",
       phase:"wreck",fx:c=>{
         const n=(c.grow(c.t.uid)||0);
-        c.mult(c.t, Math.pow(1.15,n));
+        c.add(c.t, 8*n);
         let eaten=0;
         c.pick(c.near(()=>true),2).forEach(t=>{ if(c.wreck(t)) eaten++; else c.add(c.t,4); });
         if(eaten) c.setGrow(c.t.uid,n+eaten);
@@ -766,7 +766,7 @@
       pre:m=>{m.flags.diceX3=true;m.flags.firstX2=true;}},
     oil:{nm:"灯油",em:"🛢️",fam:"符号",tier:1,price:75,dsc:"灯笼给相邻的加成翻倍。",
       pre:m=>{m.flags.oil=true;}},
-    orrery:{nm:"星盘",em:"🔭",fam:"符号",tier:1,price:90,dsc:"月亮的成长速度翻倍。",
+    orrery:{nm:"星盘",em:"🔭",fam:"符号",tier:1,price:90,dsc:"月亮每次出现改为 +6。",
       pre:m=>{m.flags.moonFast=true;}},
     locksmith:{nm:"锁匠",em:"🔐",fam:"符号",tier:2,price:150,dsc:"钥匙开箱 +150 且不被消耗；宝箱 +8。",
       pre:m=>{m.flags.locksmith=true;}, apply:m=>{m.tileAdd.push(t=>t.id==="chest"?8:0);}},
@@ -928,7 +928,8 @@
   const LEVEL_START=LEVEL_PERIODS.reduce((a,n,i)=>(a.push((a[i]||0)+n),a),[0]); // 各关起始期（0基前缀和）
   const LEVEL_RENTS=[260, 620, 1400, 3000, 6300];   // 每关约 ×2.2，均匀爬坡（旧表前两跳 ×3.8/×3.7，后两跳仅 ×1.7/×1.46）
   // 无尽模式：每关固定 5 期，租金按 ×1.7 续
-  const ENDLESS_PERIODS=5, ENDLESS_STEP=1.7;
+  // 无尽曲线：底数本身逐关变大，所以坡度是越走越陡，而不是固定倍率
+  const ENDLESS_PERIODS=5, ENDLESS_STEP=1.7, ENDLESS_ACCEL=0.06;
 
   function levelOf(p){
     for(let i=0;i<TOTAL_LEVELS;i++) if(p<=LEVEL_START[i+1]) return i+1;
@@ -940,7 +941,10 @@
   }
   function levelRentRaw(lv){
     if(lv<=TOTAL_LEVELS) return LEVEL_RENTS[lv-1];
-    return Math.round(LEVEL_RENTS[TOTAL_LEVELS-1]*Math.pow(ENDLESS_STEP,lv-TOTAL_LEVELS));
+    const n=lv-TOTAL_LEVELS;
+    let r=LEVEL_RENTS[TOTAL_LEVELS-1];
+    for(let i=1;i<=n;i++) r*=ENDLESS_STEP+ENDLESS_ACCEL*(i-1);
+    return Math.round(r);
   }
 
   // 机制分批开放 —— 教学关要教东西，不是一次性全泼给你
@@ -1421,6 +1425,16 @@
     settleRent();
   }
 
+  // 交租后层数减半（向下取整）：既留住"养了一路"的积累感，又压住无限累积。
+  // 用清零的话，月亮就只是个关内符号，不值得当稀有来养。
+  function halveLevelGrowth(){
+    S.pool.forEach(x=>{
+      if(x.id!=="moon"&&x.id!=="hole") return;
+      const g=S.growth[x.uid]||0;
+      if(g>0) S.growth[x.uid]=Math.floor(g/2);
+    });
+  }
+
   function periodTick(){
     const m=mods();
     if(m.flags.sieve){
@@ -1442,6 +1456,7 @@
       S.period++;
       S.counters.sack=0;
       S.spinsLeft=spinsPerPeriod();
+      halveLevelGrowth();
       periodTick();
       render();
       if(clearedLevel>=TOTAL_LEVELS && !S.endless){ victory(); return; }
@@ -1763,6 +1778,36 @@
         <div class="offers">${shopStock.syms.map(id=>symCard(id,true)).join("")}</div>
       </div>
 
+      <div class="shop-sec">
+        <h3 class="section-title">我的家当</h3>
+        <div class="chips" id="myItems">
+          ${S.items.length
+            ? S.items.map(id=>{
+                const it=ITEMS[id];
+                return `<span class="chip pick" data-shopdrop="${id}" title="${it.dsc}\n点两下舍弃，退回 ${Math.round(ITEMS[id].price*0.5)} 钱">
+                  ${it.em} ${it.nm}<span class="ebadge">舍 +${Math.round(ITEMS[id].price*0.5)}</span></span>`;
+              }).join("")
+            : '<span class="empty-note">还没有道具。</span>'}
+        </div>
+        <p class="hint" style="margin:8px 0 0">
+          道具位 <b style="color:${S.items.length>=ITEM_CAP?"var(--seal,#AE3226)":"var(--brass)"}">${S.items.length}/${ITEM_CAP}</b>
+          ${S.items.length>=ITEM_CAP?"　已满——点上面的道具两下可以当场舍弃，腾出位子。":"　点道具两下可以舍弃换半价。"}
+        </p>
+        <div style="margin-top:10px">
+          <span class="fam">符号池 · ${S.pool.length} 个</span>
+          <div class="chips" style="margin-top:5px">
+            ${(()=>{
+              const c={}; S.pool.forEach(x=>c[x.id]=(c[x.id]||0)+1);
+              return Object.keys(c).sort((a,b)=>c[b]-c[a]).map(id=>{
+                const d=SYMBOLS[id];
+                const ench=S.pool.filter(x=>x.id===id&&enchOf(x.uid)).length;
+                return `<span class="chip" title="${d.nm} — ${d.dsc}">${d.em}${d.nm}<span class="n">${c[id]}</span>${ench?`<span class="ebadge">✦${ench}</span>`:""}</span>`;
+              }).join("");
+            })()}
+          </div>
+        </div>
+      </div>
+
       <div class="sheet-foot">
         ${S.endless?`<button id="toBench" ${S.coins>=enchPrice()?"":"disabled"}>附魔台 · ${enchPrice()} 钱起</button>`:""}
         <button id="buyRm" ${(S.coins>=removalPrice()&&S.removalsBought<1)?"":"disabled"}>${S.removalsBought>=1?"整理已售罄（每次进店限一次）":`买 1 次整理 · ${removalPrice()} 钱`}</button>
@@ -1770,6 +1815,25 @@
       </div>`);
     const tb=el("toBench");
     if(tb) tb.onclick=()=>openBench(()=>drawShop(paid));
+
+    let armedDrop=null;
+    sheet.querySelectorAll("[data-shopdrop]").forEach(b=>b.onclick=()=>{
+      const id=b.dataset.shopdrop;
+      if(armedDrop!==id){                       // 第一下只做武装，防误触
+        armedDrop=id;
+        sheet.querySelectorAll("[data-shopdrop] .ebadge").forEach(t=>{
+          const k=t.closest("[data-shopdrop]").dataset.shopdrop;
+          t.textContent="舍 +"+Math.round(ITEMS[k].price*0.5); t.style.color="";
+        });
+        const tag=b.querySelector(".ebadge");
+        tag.textContent="再点一次"; tag.style.color="var(--seal,#AE3226)";
+        return;
+      }
+      S.items=S.items.filter(x=>x!==id);
+      S.coins+=Math.round(ITEMS[id].price*0.5);
+      S.spinsLeft=spinsPerPeriod();
+      render(); drawShop(paid);
+    });
 
     sheet.querySelectorAll("[data-item]").forEach(b=>b.onclick=()=>{
       const id=b.dataset.item,it=ITEMS[id],price=itemPrice(id);
