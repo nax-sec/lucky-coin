@@ -952,7 +952,7 @@
 
   let uidSeq=0;
   const S={pool:[],growth:{},items:[],coins:0,period:1,spinsLeft:5,spinNo:0,tokens:1,
-           counters:{sack:0,pawn:0,rents:0,ench:0},over:false,busy:false,removalsBought:0,rerolls:0,endless:false,
+           counters:{sack:0,pawn:0,rents:0,ench:0},enchThisShop:false,over:false,busy:false,removalsBought:0,rerolls:0,endless:false,
            ench:{},encnt:{},earned:0};
 
   const el=id=>document.getElementById(id);
@@ -1621,9 +1621,10 @@
   function drawBench(back){
     const price=enchPrice();
     const keys=Object.keys(ENCH);
+    const used=S.enchThisShop;
     const cards=keys.map(k=>{
       const e=ENCH[k], on=benchPick===k;
-      return `<button class="offer ${on?"chosen":""}" data-ench="${k}">
+      return `<button class="offer ${on?"chosen":""}" data-ench="${k}" ${used?"disabled":""}>
         <span class="top"><span class="em">${e.em}</span><span class="nm">${e.nm}</span>
         ${on?'<span class="tagline r-rare">已选</span>':''}</span>
         <span class="dsc">${e.dsc}</span></button>`;
@@ -1649,8 +1650,9 @@
     open(`
       <span class="purse">铜钱 ${S.coins}</span>
       <h2>附魔台</h2>
-      <p class="hint">一个符号只能带一条附魔，再镶就是覆盖。
-      每镶一次，往后就更贵一分——现价 <b style="color:var(--brass)">${price}</b> 钱。</p>
+      <p class="hint">一个符号只能带一条附魔，再镶就是覆盖。<b style="color:var(--cinnabar)">每次进店只能附魔一次。</b>
+      每镶一次，往后就更贵一分——现价 <b style="color:var(--brass)">${price}</b> 钱。
+      ${used?'<br><b style="color:var(--seal,#AE3226)">本次已用过了，下次进店再来。</b>':""}</p>
       <div class="offers">${cards}</div>
       ${benchPick?`<div class="shop-sec">
         <h3 class="section-title">镶在哪一个上？　<span style="font-size:12px;color:var(--bone-dim)">共 ${S.pool.length} 个</span></h3>
@@ -1661,13 +1663,14 @@
       </div>`);
 
     sheet.querySelectorAll("[data-ench]").forEach(b=>b.onclick=()=>{
-      if(S.coins<price) return;
+      if(S.coins<price||S.enchThisShop) return;
       benchPick=b.dataset.ench; drawBench(back);
     });
     sheet.querySelectorAll("[data-target]").forEach(c=>c.onclick=()=>{
-      if(!benchPick||S.coins<enchPrice()) return;
+      if(!benchPick||S.coins<enchPrice()||S.enchThisShop) return;
       const uid=+c.dataset.target;
       S.coins-=enchPrice();
+      S.enchThisShop=true;
       S.counters.ench=(S.counters.ench||0)+1;
       S.ench[uid]=benchPick;
       delete S.encnt[uid];                      // 换附魔时重置蓄势计数
@@ -1839,7 +1842,7 @@
       </div>
 
       <div class="sheet-foot">
-        ${S.endless?`<button id="toBench" ${S.coins>=enchPrice()?"":"disabled"}>附魔台 · ${enchPrice()} 钱起</button>`:""}
+        ${S.endless?`<button id="toBench" ${(S.coins>=enchPrice()&&!S.enchThisShop)?"":"disabled"}>${S.enchThisShop?"附魔台 · 本次已用":`附魔台 · ${enchPrice()} 钱起`}</button>`:""}
         <button id="buyRm" ${(S.coins>=removalPrice()&&S.removalsBought<1)?"":"disabled"}>${S.removalsBought>=1?"整理已售罄（每次进店限一次）":`买 1 次整理 · ${removalPrice()} 钱`}</button>
         <button id="leave">离开，开转</button>
       </div>`);
@@ -1904,7 +1907,7 @@
       if(S.coins<c) return;
       S.coins-=c; S.rerolls++; shopStock=rollShop(); render(); drawShop(paid);
     };
-    el("leave").onclick=()=>{ shopStock=null; S.removalsBought=0; if(!S.endless) S.rerolls=0; close(); S.busy=false; render(); };
+    el("leave").onclick=()=>{ shopStock=null; S.removalsBought=0; S.enchThisShop=false; if(!S.endless) S.rerolls=0; close(); S.busy=false; render(); };
   }
 
   /* ================= 池子 / 道具册 ================= */
@@ -2113,7 +2116,7 @@
 
   function init(){
     S.pool=[];S.growth={};S.ench={};S.encnt={};S.earned=0;S.items=[];S.coins=0;S.period=1;S.spinNo=0;S.tokens=1;
-    S.counters={sack:0,pawn:0,rents:0,ench:0};S.over=false;S.busy=false;S.removalsBought=0;S.rerolls=0;S.endless=false;
+    S.counters={sack:0,pawn:0,rents:0,ench:0};S.enchThisShop=false;S.over=false;S.busy=false;S.removalsBought=0;S.rerolls=0;S.endless=false;
     uidSeq=0;shopStock=null;
     S.coins=OPENING_STAKE;
     S.spinsLeft=spinsPerPeriod();
