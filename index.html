@@ -645,12 +645,12 @@
 
     tree:{nm:"树",em:"🌳",base:5,rar:"uncommon",tags:["植物"],dsc:"相邻每有 1 粒种子，+3。",
       phase:"value",fx:c=>{const n=c.near(t=>t.id==="seed").length; if(n) c.add(c.t,3*n);}},
-    lens:{nm:"放大镜",em:"🔍",base:0,rar:"uncommon",tags:["器物"],up:"orb",dsc:"相邻符号的产出 ×2。",
-      phase:"mult",fx:c=>{c.near(()=>true).forEach(t=>c.mult(t,2));}},
+    lens:{nm:"放大镜",em:"🔍",base:0,rar:"uncommon",tags:["器物"],up:"orb",dsc:"相邻符号的产出 ×2（不作用于其他乘法类符号）。",
+      phase:"mult",fx:c=>{c.near(t=>!MULTIPLIERS.includes(t.id)).forEach(t=>c.mult(t,2));}},
     bomb:{nm:"炸弹",em:"💣",base:0,rar:"uncommon",tags:["器物"],dsc:"随机摧毁最多 3 个相邻符号，每个 +14（池子不足 16 时不炸，改 +4）。",
       phase:"wreck",fx:c=>{c.pick(c.near(()=>true),3).forEach(t=>c.add(c.t,c.wreck(t)?14:4));}},
-    orb:{nm:"水晶球",em:"🔮",base:0,rar:"rare",tags:["器物"],dsc:"相邻符号的产出 ×3。",
-      phase:"mult",fx:c=>{c.near(()=>true).forEach(t=>c.mult(t,3));}},
+    orb:{nm:"水晶球",em:"🔮",base:0,rar:"rare",tags:["器物"],dsc:"相邻符号的产出 ×3（不作用于其他乘法类符号）。",
+      phase:"mult",fx:c=>{c.near(t=>!MULTIPLIERS.includes(t.id)).forEach(t=>c.mult(t,3));}},
     bell:{nm:"铃铛",em:"🔔",base:2,rar:"uncommon",tags:["器物"],dsc:"每逢第 4 的倍数转，额外 +25。",
       phase:"value",fx:c=>{if(c.spinNo()%4===0) c.add(c.t,25);}},
     bear:{nm:"熊",em:"🐻",base:3,rar:"uncommon",tags:["动物"],dsc:"摧毁相邻的蜂蜜，每个 +80。（蜜永久移出池）",
@@ -682,12 +682,15 @@
         c.pick(c.near(()=>true),2).forEach(t=>{ if(c.wreck(t)) eaten++; else c.add(c.t,4); });
         if(eaten) c.setGrow(c.t.uid,n+eaten);
       }},
-    dragon:{nm:"龙",em:"🐉",base:10,rar:"legend",tags:["动物"],dsc:"相邻符号产出 ×1.6，自己也算。",
-      phase:"mult",fx:c=>{ c.mult(c.t,1.6); c.near(()=>true).forEach(t=>c.mult(t,1.6)); }},
+    dragon:{nm:"龙",em:"🐉",base:10,rar:"legend",tags:["动物"],dsc:"相邻符号产出 ×1.6，自己也算（不作用于其他乘法类符号）。",
+      phase:"mult",fx:c=>{ c.mult(c.t,1.6); c.near(t=>!MULTIPLIERS.includes(t.id)).forEach(t=>c.mult(t,1.6)); }},
     fortune:{nm:"财神",em:"🧧",base:8,rar:"legend",unique:true,tags:[],
       dsc:"全局唯一。本转所有产出 ×1.5。",
       phase:"mult",fx:c=>{ c.boardMul(1.5); }},
   };
+  // 乘法源：这类符号给别人乘倍率。它们之间不能互相加成，否则就是全连通图上的连乘。
+  const MULTIPLIERS=["lens","orb","dragon"];
+  const MULT_CAP=4;                       // 池子里最多几个乘法源
   const RAR_W={common:100,uncommon:42,rare:14,legend:4};
   const RAR_NM={common:"常见",uncommon:"少见",rare:"稀有",legend:"传说"};
   const WRECKERS=["cat","bear","bomb","hole","key","mouse"];
@@ -968,6 +971,8 @@
   const sleep=ms=>new Promise(r=>setTimeout(r,REDUCED?0:ms));
 
   function addSym(id){ S.pool.push({uid:++uidSeq,id}); }
+  function multCount(){ return S.pool.filter(x=>MULTIPLIERS.includes(x.id)).length; }
+  function multFull(){ return multCount()>=MULT_CAP; }
   // 道具越囤越贵 —— 不封死堆叠，但让"再买一件"始终要跟"留着交租"打一架
   // 价格锚定：以"本关租金摊到每期"为基准，随经济一起长。
   // 不锚定租金总额 —— 租金是你必须留住的钱，不是你能花的钱。
@@ -1556,7 +1561,12 @@
       for(let j=0;j<bag.length;j++){ r-=score(bag[j]); if(r<=0){hit=j;break;} }
       commons.push(bag.splice(hit,1)[0]);
     }
-    const all=[...commons,...seeds];
+    let all=[...commons,...seeds];
+    { // 开局同样受乘法类上限约束
+      let k=0;
+      all=all.filter(id=>{ if(!MULTIPLIERS.includes(id)) return true; return ++k<=MULT_CAP; });
+      while(all.length<12){ const c=com[Math.floor(Math.random()*com.length)]; if(!MULTIPLIERS.includes(c)) all.push(c); }
+    }
     // 起名按"相对突出度"，不按绝对数量 ——
     // 器物是全表最常见的标签，按数量取名会让每一副都叫器物局。
     const cnt={}, base={};
@@ -1603,11 +1613,12 @@
   function symCard(id,priced){
     const s=SYMBOLS[id];
     const price=priced?symPrice(id):null;
-    const afford=price===null||S.coins>=price;
+    const capped=MULTIPLIERS.includes(id)&&multFull();
+    const afford=(price===null||S.coins>=price)&&!capped;
     return `<button class="offer" data-sym="${id}" ${afford?"":"disabled"}>
       <span class="top"><span class="em">${s.em}</span><span class="nm">${s.nm}</span>
       <span class="tagline r-${s.rar}">${RAR_NM[s.rar]}</span></span>
-      <span class="meta">底值 ${s.base}${price!==null?`　·　${price} 钱`:""}</span>
+      <span class="meta">底值 ${s.base}${price!==null?`　·　${price} 钱`:""}${capped?`　·　乘法类已满 ${MULT_CAP}/${MULT_CAP}`:""}</span>
       <span class="dsc">${s.dsc}</span></button>`;
   }
 
@@ -1804,7 +1815,7 @@
       </div>`:""}
 
       <div class="shop-sec">
-        <h3 class="section-title">符号 <span style="font-size:12px;color:var(--brass-dim)">池子 ${S.pool.length}</span>　<button id="reroll" class="mini" ${S.coins>=rerollPrice()?"":"disabled"}>刷新 · ${rerollPrice()} 钱</button>${S.rerolls?`<span style="margin-left:10px;font-size:12px;color:var(--seal,#AE3226)">已刷 ${S.rerolls} 次 · 全店 ×${markup().toFixed(2)}${S.endless?"（无尽模式：不会清零）":""}</span>`:""}</h3>
+        <h3 class="section-title">符号 <span style="font-size:12px;color:var(--brass-dim)">池子 ${S.pool.length} · 乘法类 ${multCount()}/${MULT_CAP}</span>　<button id="reroll" class="mini" ${S.coins>=rerollPrice()?"":"disabled"}>刷新 · ${rerollPrice()} 钱</button>${S.rerolls?`<span style="margin-left:10px;font-size:12px;color:var(--seal,#AE3226)">已刷 ${S.rerolls} 次 · 全店 ×${markup().toFixed(2)}${S.endless?"（无尽模式：不会清零）":""}</span>`:""}</h3>
         <div class="offers">${shopStock.syms.map(id=>symCard(id,true)).join("")}</div>
       </div>
 
@@ -1889,6 +1900,7 @@
     sheet.querySelectorAll("[data-sym]").forEach(b=>b.onclick=()=>{
       const id=b.dataset.sym,price=symPrice(id);
       if(S.coins<price) return;
+      if(MULTIPLIERS.includes(id)&&multFull()) return;
       S.coins-=price; addSym(id);
       shopStock.syms=shopStock.syms.filter(x=>x!==id);
       render(); drawShop(paid);
